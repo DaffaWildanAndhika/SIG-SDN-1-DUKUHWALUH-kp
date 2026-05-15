@@ -63,19 +63,33 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
   return (
     <div className="flex h-screen bg-main-bg text-slate-900 font-sans overflow-hidden">
       {/* Sidebar */}
-      <aside className={`bg-[#1E293B] flex flex-col border-r border-slate-800 shrink-0 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
-        <div className="p-6">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shrink-0">
-              S
-            </div>
-            {isSidebarOpen && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col overflow-hidden">
-                <span className="text-white font-bold leading-none tracking-tight">SIA GURU</span>
-                <span className="text-slate-400 text-[10px] mt-1 uppercase tracking-wider truncate">SDN 1 Dukuhwaluh</span>
-              </motion.div>
-            )}
-          </div>
+<aside className={`bg-[#1E293B] flex flex-col border-r border-slate-800 shrink-0 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+  <div className="p-6">
+    <div className="flex items-center gap-3 mb-8">
+
+      <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0">
+        <img
+          src="/logo.jpg"
+          alt="Logo Sekolah"
+          className="w-full h-full object-cover"
+        />
+      </div>
+
+      {isSidebarOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col overflow-hidden"
+        >
+          <span className="text-white font-bold leading-none tracking-tight">
+            SIA GURU
+          </span>
+          <span className="text-slate-400 text-[10px] mt-1 uppercase tracking-wider truncate">
+            SDN 1 Dukuhwaluh
+          </span>
+        </motion.div>
+      )}
+    </div>
 
           <nav className="space-y-1">
             <SidebarItem to="/" icon={LayoutDashboard} label={isSidebarOpen ? "Dashboard" : ""} active={location.pathname === "/"} />

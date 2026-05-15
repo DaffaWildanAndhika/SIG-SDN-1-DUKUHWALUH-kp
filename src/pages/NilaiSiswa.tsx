@@ -57,20 +57,15 @@ export default function NilaiSiswa() {
   const checkUserRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      // First check metadata
-      const metaRole = user.user_metadata?.role || "";
-      setUserRole(metaRole);
-      
-      // Verification against profiles table to avoid FK issues
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, role')
+        .select('role')
         .eq('id', user.id)
         .single();
       
-      if (profile) {
-        setUserRole(profile.role);
-      }
+      const role = profile?.role || user.user_metadata?.role || "guru";
+      const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
+      setUserRole(isSpecialAdmin ? "admin" : role);
     }
   };
 
@@ -609,46 +604,48 @@ export default function NilaiSiswa() {
 
   return (
     <div className="space-y-6 pb-20">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-            <GraduationCap className="text-blue-600" /> Input Nilai Siswa
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-3">
+            <GraduationCap className="text-blue-600 shrink-0" /> Input Nilai Siswa
           </h1>
-          <p className="text-sm text-slate-500">
+          <p className="text-xs md:text-sm text-slate-500">
             {viewMode === "harian" 
               ? "Input nilai per Lingkup Materi (Bab) dengan 4 TP" 
               : "Rekap Nilai Rapor (Rata-rata Bab + UTS + UAS)"}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-slate-100 p-1 rounded-xl flex">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="bg-slate-100 p-1 rounded-xl flex w-full sm:w-auto">
             <button
               onClick={() => setViewMode("harian")}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "harian" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "harian" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               Harian / Bab
             </button>
             <button
               onClick={() => setViewMode("rapor")}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "rapor" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "rapor" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               Rapor Akhir
             </button>
           </div>
-          <Button 
-            variant="outline"
-            onClick={exportToExcel}
-            className="border-blue-200 text-blue-600 hover:bg-blue-50 gap-2 font-bold"
-          >
-             <Download size={16} /> Ekspor Excel
-          </Button>
-          <Button 
-            onClick={saveAllGrades} 
-            disabled={saving || loading || !selectedSubject || (viewMode === "harian" && !scopeName)}
-            className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 gap-2"
-          >
-            {saving ? "Menyimpan..." : <><Save size={16} /> Simpan Semua Nilai</>}
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button 
+              variant="outline"
+              onClick={exportToExcel}
+              className="flex-1 sm:flex-none border-blue-200 text-blue-600 hover:bg-blue-50 gap-2 font-bold px-3 py-1 h-9 md:h-10 text-xs md:text-sm"
+            >
+               <Download size={16} /> <span className="hidden sm:inline">Ekspor Excel</span><span className="sm:hidden">Excel</span>
+            </Button>
+            <Button 
+              onClick={saveAllGrades} 
+              disabled={saving || loading || !selectedSubject || (viewMode === "harian" && !scopeName)}
+              className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 gap-2 px-3 py-1 h-9 md:h-10 text-xs md:text-sm"
+            >
+              {saving ? "..." : <><Save size={16} /> <span className="hidden sm:inline">Simpan Semua</span><span className="sm:hidden">Simpan</span></>}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -715,12 +712,12 @@ export default function NilaiSiswa() {
         </Card>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <Card className="bg-white border-slate-200 shadow-sm border-b-4 border-b-blue-600">
-              <CardContent className="p-4 flex items-center justify-between">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            <Card className="bg-white border-slate-200 shadow-sm border-b-2 md:border-b-4 border-b-blue-600">
+              <CardContent className="p-3 md:p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rerata Kelas</p>
-                  <p className="text-2xl font-black text-slate-800">
+                  <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rerata</p>
+                  <p className="text-lg md:text-2xl font-black text-slate-800">
                     {students.length > 0 ? (
                       Math.round(students.reduce((acc, s) => {
                         const val = viewMode === "harian" ? (grades[s.id]?.average_score || 0) : (semesterGrades[s.id]?.final_score || 0);
@@ -729,68 +726,68 @@ export default function NilaiSiswa() {
                     ) : 0}
                   </p>
                 </div>
-                <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
-                  <Calculator size={16} />
+                <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg text-blue-600">
+                  <Calculator size={14} />
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-white border-slate-200 shadow-sm border-b-4 border-b-emerald-600">
-              <CardContent className="p-4 flex items-center justify-between">
+            <Card className="bg-white border-slate-200 shadow-sm border-b-2 md:border-b-4 border-b-emerald-600">
+              <CardContent className="p-3 md:p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nilai Tertinggi</p>
-                  <p className="text-2xl font-black text-emerald-600">
+                  <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tinggi</p>
+                  <p className="text-lg md:text-2xl font-black text-emerald-600">
                     {students.length > 0 ? Math.max(...students.map(s => viewMode === "harian" ? (grades[s.id]?.average_score || 0) : (semesterGrades[s.id]?.final_score || 0))) : 0}
                   </p>
                 </div>
-                <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
-                  <ChevronRight size={16} className="-rotate-90" />
+                <div className="bg-emerald-50 p-1.5 md:p-2 rounded-lg text-emerald-600">
+                  <ChevronRight size={14} className="-rotate-90" />
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-white border-slate-200 shadow-sm border-b-4 border-b-amber-600">
-              <CardContent className="p-4 flex items-center justify-between">
+            <Card className="bg-white border-slate-200 shadow-sm border-b-2 md:border-b-4 border-b-amber-600">
+              <CardContent className="p-3 md:p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nilai Terendah</p>
-                  <p className="text-2xl font-black text-amber-600">
+                  <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rendah</p>
+                  <p className="text-lg md:text-2xl font-black text-amber-600">
                     {students.length > 0 ? Math.min(...students.map(s => viewMode === "harian" ? (grades[s.id]?.average_score || 0) : (semesterGrades[s.id]?.final_score || 0))) : 0}
                   </p>
                 </div>
-                <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
-                  <ChevronRight size={16} className="rotate-90" />
+                <div className="bg-amber-50 p-1.5 md:p-2 rounded-lg text-amber-600">
+                  <ChevronRight size={14} className="rotate-90" />
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-white border-slate-200 shadow-sm border-b-4 border-b-indigo-600">
-              <CardContent className="p-4 flex items-center justify-between">
+            <Card className="bg-white border-slate-200 shadow-sm border-b-2 md:border-b-4 border-b-indigo-600">
+              <CardContent className="p-3 md:p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Partisipasi</p>
+                  <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Aktif</p>
                   <div className="flex items-baseline gap-1">
-                    <p className="text-2xl font-black text-indigo-600">
+                    <p className="text-lg md:text-2xl font-black text-indigo-600">
                       {students.length > 0 ? Math.round((students.filter(s => (viewMode === "harian" ? (grades[s.id]?.average_score || 0) : (semesterGrades[s.id]?.final_score || 0)) > 0).length / students.length) * 100) : 0}%
                     </p>
                   </div>
                 </div>
-                <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600">
-                  <GraduationCap size={16} />
+                <div className="bg-indigo-50 p-1.5 md:p-2 rounded-lg text-indigo-600">
+                  <GraduationCap size={14} />
                 </div>
               </CardContent>
             </Card>
           </div>
 
           <Card className="border-slate-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="overflow-x-auto rounded-xl">
+              <Table className="min-w-[800px] md:min-w-full">
                 {viewMode === "harian" ? (
                   <>
                     <TableHeader className="bg-slate-50/80 sticky top-0 z-10 shadow-sm">
                       <TableRow className="border-b border-slate-200">
-                        <TableHead className="w-[50px] font-bold text-slate-600 text-center">No</TableHead>
-                        <TableHead className="min-w-[200px] font-bold text-slate-600">Nama Murid</TableHead>
-                        <TableHead className="w-[90px] text-center font-bold text-slate-600">TP 1</TableHead>
-                        <TableHead className="w-[90px] text-center font-bold text-slate-600">TP 2</TableHead>
-                        <TableHead className="w-[90px] text-center font-bold text-slate-600">TP 3</TableHead>
-                        <TableHead className="w-[90px] text-center font-bold text-slate-600">TP 4</TableHead>
-                        <TableHead className="w-[120px] text-center font-bold bg-blue-50/50 text-blue-700">RERATA BAB</TableHead>
+                        <TableHead className="w-[40px] md:w-[50px] font-bold text-slate-600 text-center">No</TableHead>
+                        <TableHead className="min-w-[150px] md:min-w-[200px] font-bold text-slate-600">Nama Murid</TableHead>
+                        <TableHead className="w-[70px] md:w-[90px] text-center font-bold text-slate-600">TP 1</TableHead>
+                        <TableHead className="w-[70px] md:w-[90px] text-center font-bold text-slate-600">TP 2</TableHead>
+                        <TableHead className="w-[70px] md:w-[90px] text-center font-bold text-slate-600">TP 3</TableHead>
+                        <TableHead className="w-[70px] md:w-[90px] text-center font-bold text-slate-600">TP 4</TableHead>
+                        <TableHead className="w-[100px] md:w-[120px] text-center font-bold bg-blue-50/50 text-blue-700 uppercase p-1 md:p-4">RERATA</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -820,7 +817,7 @@ export default function NilaiSiswa() {
                                     max="100"
                                     value={sGrade[`tp${tp}`] || ""}
                                     onChange={(e) => handleGradeChange(student.id, `tp${tp}`, e.target.value)}
-                                    className="text-center h-10 bg-white border-slate-200 focus:border-blue-400 focus:ring-blue-100 font-medium transition-all shadow-none"
+                                    className="text-center h-8 md:h-10 bg-white border-slate-200 focus:border-blue-400 focus:ring-blue-100 font-medium transition-all shadow-none px-1 text-sm"
                                     placeholder="0"
                                   />
                                   <div className="absolute bottom-0 left-0 h-0.5 w-0 bg-blue-500 transition-all group-focus-within/input:w-full"></div>
@@ -849,12 +846,12 @@ export default function NilaiSiswa() {
                   <>
                     <TableHeader className="bg-slate-50/80 sticky top-0 z-10 shadow-sm">
                       <TableRow className="border-b border-slate-200">
-                        <TableHead className="w-[50px] font-bold text-slate-600 text-center">No</TableHead>
-                        <TableHead className="min-w-[200px] font-bold text-slate-600">Nama Murid</TableHead>
-                        <TableHead className="w-[120px] text-center font-bold text-slate-600">Rerata Bab</TableHead>
-                        <TableHead className="w-[110px] text-center font-bold text-amber-700 bg-amber-50/50">UTS</TableHead>
-                        <TableHead className="w-[110px] text-center font-bold text-amber-700 bg-amber-50/50">UAS</TableHead>
-                        <TableHead className="w-[140px] text-center font-bold text-emerald-700 bg-emerald-50/50">NILAI RAPOR</TableHead>
+                        <TableHead className="w-[40px] md:w-[50px] font-bold text-slate-600 text-center">No</TableHead>
+                        <TableHead className="min-w-[150px] md:min-w-[200px] font-bold text-slate-600">Nama Murid</TableHead>
+                        <TableHead className="w-[100px] md:w-[120px] text-center font-bold text-slate-600">Avg Bab</TableHead>
+                        <TableHead className="w-[80px] md:w-[110px] text-center font-bold text-amber-700 bg-amber-50/50">UTS</TableHead>
+                        <TableHead className="w-[80px] md:w-[110px] text-center font-bold text-amber-700 bg-amber-50/50">UAS</TableHead>
+                        <TableHead className="w-[110px] md:w-[140px] text-center font-bold text-emerald-700 bg-emerald-50/50">RAPOR</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -887,7 +884,7 @@ export default function NilaiSiswa() {
                                 max="100"
                                 value={semGrade.uts || ""}
                                 onChange={(e) => handleSemesterGradeChange(student.id, "uts", e.target.value)}
-                                className="text-center h-10 font-bold border-amber-100 focus:border-amber-400 focus:ring-amber-100 bg-white shadow-sm"
+                                className="text-center h-8 md:h-10 font-bold border-amber-100 focus:border-amber-400 focus:ring-amber-100 bg-white shadow-sm px-1 text-sm"
                                 placeholder="0"
                               />
                             </TableCell>
@@ -898,7 +895,7 @@ export default function NilaiSiswa() {
                                 max="100"
                                 value={semGrade.uas || ""}
                                 onChange={(e) => handleSemesterGradeChange(student.id, "uas", e.target.value)}
-                                className="text-center h-10 font-bold border-amber-100 focus:border-amber-400 focus:ring-amber-100 bg-white shadow-sm"
+                                className="text-center h-8 md:h-10 font-bold border-amber-100 focus:border-amber-400 focus:ring-amber-100 bg-white shadow-sm px-1 text-sm"
                                 placeholder="0"
                               />
                             </TableCell>

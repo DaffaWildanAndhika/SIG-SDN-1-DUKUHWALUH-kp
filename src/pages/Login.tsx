@@ -95,15 +95,20 @@ export default function Login() {
 
       <div className="w-full max-w-md z-10">
         <div className="flex flex-col items-center mb-6">
-          <div className="bg-blue-600 p-4 rounded-2xl shadow-xl shadow-blue-200 mb-4 cursor-pointer hover:scale-105 transition-transform"
-               onClick={() => {
-                 // Sneaky demo bypass remains as a hidden feature if needed
-                 if (email === "demo" && password === "demo") {
-                   toast.info("Demo mode enabled via console.");
-                 }
-               }}>
-            <School className="text-white" size={32} />
-          </div>
+          <div
+  className="mb-4 cursor-pointer hover:scale-105 transition-transform"
+  onClick={() => {
+    if (email === "demo" && password === "demo") {
+      toast.info("Demo mode enabled via console.");
+    }
+  }}
+>
+  <img
+    src="/logo.jpg"
+    alt="Logo Sekolah"
+    className="w-16 h-16 object-contain"
+  />
+</div>
           <h1 className="text-2xl font-bold text-slate-900 leading-tight">SDN 1 Dukuhwaluh</h1>
           <p className="text-slate-500 text-sm">Sistem Informasi Administrasi Guru</p>
         </div>
@@ -207,45 +212,13 @@ export default function Login() {
                 </button>
               </div>
 
-              {!isSignUp && (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 w-full space-y-3">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-                      Akses Administrator:
-                    </p>
-                    <button 
-                      type="button"
-                      onClick={() => { setEmail("admin@sekolah.id"); setPassword("admin123"); }}
-                      className="text-[11px] text-slate-600 hover:bg-white hover:shadow-sm p-2 rounded-lg transition-all text-left flex items-center justify-between w-full font-bold border border-transparent hover:border-blue-100"
-                    >
-                      <span className="text-blue-600">Login sebagai Admin</span>
-                      <span className="font-mono text-blue-400 group-hover:text-blue-600">admin@sekolah.id</span>
-                    </button>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-200">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                      Akses Guru:
-                    </p>
-                    <button 
-                      type="button"
-                      onClick={() => { setEmail("guru@sekolah.id"); setPassword("guru123"); }}
-                      className="text-[11px] text-slate-600 hover:bg-white hover:shadow-sm p-2 rounded-lg transition-all text-left flex items-center justify-between w-full font-medium border border-transparent hover:border-green-100"
-                    >
-                      <span>Login Akun Guru</span>
-                      <span className="font-mono text-green-600">guru@sekolah.id</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+              
             </CardFooter>
           </form>
         </Card>
         
         <p className="mt-8 text-center text-slate-400 text-xs">
-          &copy; 2026 SDN 1 Dukuhwaluh. Tim IT Sekolah.
+          &copy; 2026 SDN 1 Dukuhwaluh.
         </p>
       </div>
     </div>

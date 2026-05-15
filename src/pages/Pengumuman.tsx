@@ -70,7 +70,8 @@ export default function Pengumuman() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const role = user.user_metadata?.role;
-      setIsAdmin(role === "admin");
+      const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
+      setIsAdmin(role === "admin" || isSpecialAdmin);
     }
   };
 
@@ -157,14 +158,14 @@ export default function Pengumuman() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20 md:pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Pengumuman Sekolah</h1>
-          <p className="text-sm text-slate-500">Pusat informasi dan komunikasi SDN 1 Dukuhwaluh</p>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Pengumuman Sekolah</h1>
+          <p className="text-xs md:text-sm text-slate-500">Pusat informasi dan komunikasi SDN 1 Dukuhwaluh</p>
         </div>
         {isAdmin && (
-          <Button onClick={() => { setSelectedAnnouncement(null); setIsDialogOpen(true); }} className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 gap-2">
+          <Button onClick={() => { setSelectedAnnouncement(null); setIsDialogOpen(true); }} className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 gap-2 h-9 md:h-10 text-xs md:text-sm">
             <Plus size={16} /> Buat Pengumuman
           </Button>
         )}

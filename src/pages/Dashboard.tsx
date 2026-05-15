@@ -8,8 +8,8 @@ import {
   TrendingUp, 
   UserCheck 
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "../components/ui/card";
-import { Button } from "../components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { 
   BarChart, 
   Bar, 
@@ -23,18 +23,18 @@ import {
   AreaChart, 
   Area 
 } from "recharts";
-import { supabase } from "../lib/supabase";
+import { supabase } from "@/lib/supabase";
 
-const StatCard = ({ title, value, icon: Icon, description, trend, color }: any) => (
-  <Card className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-md">
-    <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">{title}</p>
-    <div className="flex items-end gap-2 mt-1">
-      <span className="text-2xl font-bold text-slate-900">{value}</span>
+const StatCard = ({ title, value, icon: Icon, description, trend }: any) => (
+  <Card className="bg-white p-3 md:p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-md">
+    <p className="text-slate-500 text-[10px] md:text-xs font-semibold uppercase tracking-wider">{title}</p>
+    <div className="flex items-baseline gap-2 mt-1">
+      <span className="text-xl md:text-2xl font-black text-slate-900">{value}</span>
       {trend && (
-        <span className="text-[10px] text-emerald-600 font-semibold mb-1">{trend}</span>
+        <span className="text-[10px] text-emerald-600 font-bold hidden sm:inline">{trend}</span>
       )}
       {!trend && description && (
-        <span className="text-[10px] text-slate-400 mb-1">{description}</span>
+        <span className="text-[10px] text-slate-400 hidden sm:inline">{description}</span>
       )}
     </div>
   </Card>
@@ -111,9 +111,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20 md:pb-10">
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 shrink-0">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 shrink-0">
         <StatCard 
           title="Total Guru" 
           value={stats.totalGuru} 
@@ -123,7 +123,7 @@ export default function Dashboard() {
         <StatCard 
           title="Guru Piket" 
           value={stats.guruPiket} 
-          description="Aktif hari ini"
+          description="Aktif"
           color="bg-indigo-600"
         />
         <StatCard 
@@ -133,7 +133,7 @@ export default function Dashboard() {
           color="bg-violet-600"
         />
         <StatCard 
-          title="Aktivitas Guru" 
+          title="Aktivitas" 
           value={stats.activityRate} 
           trend="Excellent"
           color="bg-amber-500"

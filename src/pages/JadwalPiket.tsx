@@ -40,7 +40,7 @@ export default function JadwalPiket() {
   const [piketList, setPiketList] = useState<any[]>([]);
   const [guruList, setGuruList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [canManage, setCanManage] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedPiket, setSelectedPiket] = useState<any>(null);
 
@@ -48,6 +48,7 @@ export default function JadwalPiket() {
   const [formData, setFormData] = useState({
     guru_id: "",
     day: "Senin",
+    picket_date: "",
     shift: "Pagi",
     location: ""
   });
@@ -63,6 +64,7 @@ export default function JadwalPiket() {
       setFormData({
         guru_id: selectedPiket.guru_id || "",
         day: selectedPiket.day || "Senin",
+        picket_date: selectedPiket.picket_date || "",
         shift: selectedPiket.shift || "Pagi",
         location: selectedPiket.location || ""
       });
@@ -70,6 +72,7 @@ export default function JadwalPiket() {
       setFormData({
         guru_id: "",
         day: selectedDay,
+        picket_date: "",
         shift: "Pagi",
         location: ""
       });
@@ -79,8 +82,16 @@ export default function JadwalPiket() {
   const checkUserRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const role = user.user_metadata?.role;
-      setIsAdmin(role === "admin");
+      // Check database profile for most accurate role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      const role = profile?.role || user.user_metadata?.role;
+      const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
+      setCanManage(role === "admin" || role === "guru" || isSpecialAdmin);
     }
   };
 
@@ -155,13 +166,13 @@ export default function JadwalPiket() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-20 md:pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Jadwal Piket Guru</h1>
           <p className="text-sm text-slate-500">Monitoring kehadiran dan tugas piket harian</p>
         </div>
-        {isAdmin && (
+        {canManage && (
           <Button onClick={() => { setSelectedPiket(null); setIsDialogOpen(true); }} className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100">
             <Plus size={16} /> Tambah Jadwal
           </Button>
@@ -196,7 +207,7 @@ export default function JadwalPiket() {
                   <Badge variant="secondary" className={`${item.shift === 'Pagi' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'} border-none font-bold uppercase tracking-wider text-[10px]`}>
                     Shift {item.shift}
                   </Badge>
-                  {isAdmin && (
+                  {canManage && (
                     <div className="flex gap-1">
                       <button onClick={() => { setSelectedPiket(item); setIsDialogOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded">
                         <Edit2 size={12} />
@@ -220,6 +231,12 @@ export default function JadwalPiket() {
                 </div>
                 
                 <div className="space-y-2 pt-2 border-t border-slate-50">
+                  {item.picket_date && (
+                    <div className="flex items-center gap-2 text-xs text-blue-600 font-bold leading-none mb-2">
+                      <CalendarIcon size={14} className="shrink-0" />
+                      <span>{new Date(item.picket_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-xs text-slate-500 font-medium leading-none">
                     <MapPin size={14} className="text-slate-400 shrink-0" />
                     <span className="truncate">{item.location}</span>
@@ -251,7 +268,7 @@ export default function JadwalPiket() {
             <p className="text-blue-100/80 text-sm font-medium">Reset atau buat ulang jadwal piket bulanan secara otomatis.</p>
           </div>
         </div>
-        {isAdmin ? (
+        {canManage ? (
           <Button variant="outline" className="relative z-10 bg-white text-blue-600 border-none hover:bg-blue-50 font-bold h-12 px-8">
              Generate Jadwal
           </Button>
@@ -289,6 +306,24 @@ export default function JadwalPiket() {
               </Select>
             </div>
 
+            <div className="space-y-2">
+              <Label>Tanggal (Opsional)</Label>
+              <Input 
+                type="date"
+                value={formData.picket_date}
+                onChange={(e) => {
+                  const dateVal = e.target.value;
+                  const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+                  const selectedDayName = dateVal ? dayNames[new Date(dateVal).getDay()] : formData.day;
+                  
+                  // Only auto-set Day if it matches one of our DAYS (Senin-Sabtu)
+                  const finalDay = DAYS.includes(selectedDayName) ? selectedDayName : formData.day;
+                  
+                  setFormData({ ...formData, picket_date: dateVal, day: finalDay });
+                }}
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Hari</Label>
@@ -296,7 +331,7 @@ export default function JadwalPiket() {
                   value={formData.day} 
                   onValueChange={(val) => setFormData({ ...formData, day: val })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-slate-50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -312,7 +347,7 @@ export default function JadwalPiket() {
                   value={formData.shift} 
                   onValueChange={(val) => setFormData({ ...formData, shift: val })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-slate-50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

@@ -44,7 +44,7 @@ export default function JadwalMengajar() {
   const [academicYears, setAcademicYears] = useState<string[]>([]);
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>("all");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [canManage, setCanManage] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isMaterialDialogOpen, setIsMaterialDialogOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
@@ -115,8 +115,16 @@ export default function JadwalMengajar() {
   const checkUserRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const role = user.user_metadata?.role;
-      setIsAdmin(role === "admin");
+      // Check database profile for most accurate role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      const role = profile?.role || user.user_metadata?.role;
+      const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
+      setCanManage(role === "admin" || role === "guru" || isSpecialAdmin);
     }
   };
 
@@ -188,7 +196,7 @@ export default function JadwalMengajar() {
 
   const handleSaveSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdmin) return;
+    if (!canManage) return;
 
     if (!formData.guru_id || !formData.class_id) {
       toast.error("Silakan pilih guru dan kelas");
@@ -291,18 +299,18 @@ export default function JadwalMengajar() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 pb-20 md:pb-10">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Jadwal Mengajar</h1>
-          <p className="text-sm text-slate-500 font-medium">Jadwal mingguan & progres materi materi SDN 1 Dukuhwaluh</p>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Jadwal Mengajar</h1>
+          <p className="text-xs md:text-sm text-slate-500 font-medium">Jadwal mingguan & progres materi materi SDN 1 Dukuhwaluh</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 lg:flex lg:items-center gap-2">
           <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-            <SelectTrigger className="w-[150px] h-10 border-slate-200 bg-white shadow-sm hover:border-blue-400 transition-colors text-blue-600 font-bold">
+            <SelectTrigger className="h-9 md:h-10 border-slate-200 bg-white shadow-sm hover:border-blue-400 transition-colors text-blue-600 font-bold text-xs md:text-sm">
               <div className="flex items-center gap-2">
-                <CalendarDays size={14} />
-                <SelectValue placeholder="Pilih Minggu" />
+                <CalendarDays size={14} className="shrink-0" />
+                <SelectValue placeholder="Minggu" />
               </div>
             </SelectTrigger>
             <SelectContent className="z-50">
@@ -312,10 +320,10 @@ export default function JadwalMengajar() {
             </SelectContent>
           </Select>
           <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="w-[180px] h-10 border-slate-200 bg-white shadow-sm">
+            <SelectTrigger className="h-9 md:h-10 border-slate-200 bg-white shadow-sm text-xs md:text-sm">
               <div className="flex items-center gap-2">
-                <Calendar size={14} className="text-slate-400" />
-                <SelectValue placeholder="Tahun Ajaran" />
+                <Calendar size={14} className="text-slate-400 shrink-0" />
+                <SelectValue placeholder="TA" />
               </div>
             </SelectTrigger>
             <SelectContent>
@@ -330,10 +338,10 @@ export default function JadwalMengajar() {
           </Select>
 
           <Select value={selectedClassFilter} onValueChange={setSelectedClassFilter}>
-            <SelectTrigger className="w-[180px] h-10 border-slate-200 bg-white shadow-sm">
+            <SelectTrigger className="h-9 md:h-10 border-slate-200 bg-white shadow-sm text-xs md:text-sm">
               <div className="flex items-center gap-2 font-medium text-slate-700">
-                <School size={14} className="text-slate-400" />
-                <SelectValue placeholder="Pilih Kelas" />
+                <School size={14} className="text-slate-400 shrink-0" />
+                <SelectValue placeholder="Kelas" />
               </div>
             </SelectTrigger>
             <SelectContent>
@@ -343,9 +351,9 @@ export default function JadwalMengajar() {
               ))}
             </SelectContent>
           </Select>
-          {isAdmin && (
-            <Button onClick={() => { setSelectedSchedule(null); setIsDialogOpen(true); }} className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100">
-              <Plus size={16} /> Buat Jadwal Tetap
+          {canManage && (
+            <Button onClick={() => { setSelectedSchedule(null); setIsDialogOpen(true); }} className="col-span-2 lg:col-auto gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 h-9 md:h-10 text-xs md:text-sm">
+              <Plus size={16} /> <span className="hidden lg:inline">Buat Jadwal</span><span className="lg:hidden">Jadwal</span>
             </Button>
           )}
         </div>
@@ -364,8 +372,8 @@ export default function JadwalMengajar() {
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <Table>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+        <Table className="min-w-[700px] md:min-w-full">
           <TableHeader className="bg-slate-50/50">
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-[120px] font-bold text-slate-600 uppercase text-[10px] tracking-wider">Waktu</TableHead>
@@ -430,20 +438,22 @@ export default function JadwalMengajar() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => { setSelectedSchedule(row); setIsMaterialDialogOpen(true); }} 
-                          title="Input Bab/Sub Bab"
-                          className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg flex items-center gap-1 font-bold text-[10px] border border-blue-100"
-                        >
-                          <BookOpen size={14} /> Materi
-                        </button>
-                        {isAdmin && (
+                      <div className="flex justify-end gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                        {canManage && (
+                          <button 
+                            onClick={() => { setSelectedSchedule(row); setIsMaterialDialogOpen(true); }} 
+                            title="Input Bab/Sub Bab"
+                            className="p-1 px-2 md:p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg flex items-center gap-1 font-bold text-[10px] border border-blue-100 whitespace-nowrap"
+                          >
+                            <BookOpen size={14} /> Materi
+                          </button>
+                        )}
+                        {canManage && (
                           <>
-                            <button onClick={() => { setSelectedSchedule(row); setIsDialogOpen(true); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg">
+                            <button onClick={() => { setSelectedSchedule(row); setIsDialogOpen(true); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0">
                               <Edit2 size={14} />
                             </button>
-                            <button onClick={() => handleDelete(row.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                            <button onClick={() => handleDelete(row.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0">
                               <Trash2 size={14} />
                             </button>
                           </>
@@ -555,7 +565,7 @@ export default function JadwalMengajar() {
         </DialogContent>
       </Dialog>
 
-      {/* Fixed Schedule Dialog (Admin Only) */}
+      {/* Fixed Schedule Dialog (Authorized Only) */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px] p-0 border-none overflow-hidden">
           <div className="bg-blue-600 p-6">

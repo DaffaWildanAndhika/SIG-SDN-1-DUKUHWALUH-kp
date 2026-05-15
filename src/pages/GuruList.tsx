@@ -58,6 +58,7 @@ import autoTable from "jspdf-autotable";
 export default function GuruList() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
+  const [canManage, setCanManage] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedGuru, setSelectedGuru] = useState<any>(null);
@@ -74,8 +75,18 @@ export default function GuruList() {
   });
 
   useEffect(() => {
+    checkUserRole();
     fetchData();
   }, []);
+
+  const checkUserRole = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const role = user.user_metadata?.role;
+      const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
+      setCanManage(role === "admin" || isSpecialAdmin);
+    }
+  };
 
   useEffect(() => {
     if (selectedGuru) {
@@ -276,17 +287,17 @@ export default function GuruList() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 pb-20 md:pb-10">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Data Guru</h1>
-          <p className="text-sm text-slate-500">Kelola informasi guru SDN 1 Dukuhwaluh</p>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Data Guru</h1>
+          <p className="text-xs md:text-sm text-slate-500">Kelola informasi guru SDN 1 Dukuhwaluh</p>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="flex-1 md:flex-none gap-2 h-9 md:h-10 text-xs md:text-sm">
                 <Download size={16} /> Export
               </Button>
             </DropdownMenuTrigger>
@@ -301,26 +312,28 @@ export default function GuruList() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => { setSelectedGuru(null); setIsDialogOpen(true); }} className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100">
-            <Plus size={16} /> Tambah Guru
-          </Button>
+          {canManage && (
+            <Button onClick={() => { setSelectedGuru(null); setIsDialogOpen(true); }} className="flex-1 md:flex-none gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 h-9 md:h-10 text-xs md:text-sm">
+              <Plus size={16} /> <span className="hidden sm:inline">Tambah Guru</span><span className="sm:hidden">Tambah</span>
+            </Button>
+          )}
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4">
+        <div className="p-3 md:p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <Input 
-              placeholder="Cari berdasarkan nama atau NIP..." 
-              className="pl-10 h-10 border-slate-200 focus:ring-blue-500" 
+              placeholder="Cari nama/NIP..." 
+              className="pl-10 h-9 md:h-10 border-slate-200 text-sm" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <div className="flex items-center gap-2">
             <Select defaultValue="all">
-              <SelectTrigger className="w-[150px] h-10 border-slate-200">
+              <SelectTrigger className="flex-1 sm:w-[150px] h-9 md:h-10 border-slate-200 text-sm">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -329,7 +342,7 @@ export default function GuruList() {
                 <SelectItem value="inactive">Non-aktif</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200">
+            <Button variant="outline" size="icon" className="h-9 md:h-10 w-9 md:w-10 border-slate-200 shrink-0">
               <Filter size={16} className="text-slate-500" />
             </Button>
           </div>
@@ -391,19 +404,21 @@ export default function GuruList() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => { setSelectedGuru(guru); setIsDialogOpen(true); }}
-                          className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
-                        >
-                          <Edit2 size={14} />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(guru.id)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
-                          <Trash2 size={14} />
-                        </Button>
-                      </div>
+                      {canManage && (
+                        <div className="flex justify-end gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => { setSelectedGuru(guru); setIsDialogOpen(true); }}
+                            className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                          >
+                            <Edit2 size={14} />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(guru.id)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -435,52 +450,52 @@ export default function GuruList() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] border-none shadow-2xl p-0 overflow-hidden">
-          <div className="bg-blue-600 p-6 flex items-center justify-between">
+        <DialogContent className="w-[95vw] sm:max-w-[600px] max-h-[95vh] overflow-y-auto border-none shadow-2xl p-0 scrollbar-hide">
+          <div className="sticky top-0 z-20 bg-blue-600 p-4 md:p-6 flex items-center justify-between shrink-0">
             <div>
               <DialogHeader>
-                <DialogTitle className="text-xl font-bold text-white">
+                <DialogTitle className="text-lg md:text-xl font-bold text-white">
                   {selectedGuru ? "Edit Data Guru" : "Tambah Guru Baru"}
                 </DialogTitle>
               </DialogHeader>
-              <p className="text-blue-100/80 text-xs mt-1 font-medium">
+              <p className="text-blue-100/80 text-[10px] md:text-xs mt-1 font-medium">
                 Sistem Informasi Administrasi SDN 1 Dukuhwaluh
               </p>
             </div>
-            <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
-                <Users className="text-white" size={24} />
+            <div className="bg-white/20 p-2 md:p-3 rounded-xl backdrop-blur-sm shrink-0">
+                <Users className="text-white" size={20} />
             </div>
           </div>
           
-          <form onSubmit={(e) => { e.preventDefault(); handleSave(formData); }}>
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <form onSubmit={(e) => { e.preventDefault(); handleSave(formData); }} className="flex flex-col">
+            <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold">NIP</Label>
+                  <Label className="text-slate-700 font-bold text-xs md:text-sm">NIP</Label>
                   <Input 
                     placeholder="Contoh: 19850312..." 
-                    className="border-slate-200 focus:ring-blue-500"
+                    className="h-10 border-slate-200 focus:ring-blue-500 text-sm"
                     value={formData.nip}
                     onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold">Nama Lengkap</Label>
+                  <Label className="text-slate-700 font-bold text-xs md:text-sm">Nama Lengkap</Label>
                   <Input 
                     placeholder="Nama beserta gelar" 
-                    className="border-slate-200 focus:ring-blue-500" 
+                    className="h-10 border-slate-200 focus:ring-blue-500 text-sm" 
                     value={formData.full_name}
                     onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold">Jenis Kelamin</Label>
+                  <Label className="text-slate-700 font-bold text-xs md:text-sm">Jenis Kelamin</Label>
                   <Select 
                     value={formData.gender}
                     onValueChange={(val) => setFormData({ ...formData, gender: val as any })}
                   >
-                    <SelectTrigger className="border-slate-200">
+                    <SelectTrigger className="h-10 border-slate-200 text-sm">
                       <SelectValue placeholder="Pilih jenis kelamin" />
                     </SelectTrigger>
                     <SelectContent>
@@ -490,25 +505,25 @@ export default function GuruList() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold">Mata Pelajaran</Label>
+                  <Label className="text-slate-700 font-bold text-xs md:text-sm">Mata Pelajaran</Label>
                   <Input 
-                    placeholder="Mata pelajaran yang diampu" 
-                    className="border-slate-200 focus:ring-blue-500" 
+                    placeholder="Mapel yang diampu" 
+                    className="h-10 border-slate-200 focus:ring-blue-500 text-sm" 
                     value={formData.subject}
                     onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold">No. HP</Label>
+                  <Label className="text-slate-700 font-bold text-xs md:text-sm">No. HP</Label>
                   <Input 
                     placeholder="Contoh: 0812..." 
-                    className="border-slate-200 focus:ring-blue-500" 
+                    className="h-10 border-slate-200 focus:ring-blue-500 text-sm" 
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold">Status Keaktifan</Label>
+                  <Label className="text-slate-700 font-bold text-xs md:text-sm">Status Keaktifan</Label>
                   <div className="flex items-center gap-4 h-10 px-1">
                     <div className="flex items-center gap-2">
                       <input 
@@ -519,7 +534,7 @@ export default function GuruList() {
                         onChange={() => setFormData({ ...formData, is_active: true })}
                         className="accent-blue-600" 
                       />
-                      <label htmlFor="active" className="text-sm font-medium text-slate-700 cursor-pointer">Aktif</label>
+                      <label htmlFor="active" className="text-xs md:text-sm font-medium text-slate-700 cursor-pointer">Aktif</label>
                     </div>
                     <div className="flex items-center gap-2">
                       <input 
@@ -530,16 +545,16 @@ export default function GuruList() {
                         onChange={() => setFormData({ ...formData, is_active: false })}
                         className="accent-blue-600" 
                       />
-                      <label htmlFor="inactive" className="text-sm font-medium text-slate-700 cursor-pointer">Non-aktif</label>
+                      <label htmlFor="inactive" className="text-xs md:text-sm font-medium text-slate-700 cursor-pointer">Non-aktif</label>
                     </div>
                   </div>
                 </div>
               </div>
               
               <div className="space-y-2">
-                <Label className="text-slate-700 font-bold">Alamat</Label>
+                <Label className="text-slate-700 font-bold text-xs md:text-sm">Alamat</Label>
                 <textarea 
-                  className="w-full min-h-[100px] p-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                  className="w-full min-h-[80px] md:min-h-[100px] p-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
                   placeholder="Alamat lengkap tempat tinggal"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -547,10 +562,10 @@ export default function GuruList() {
               </div>
             </div>
 
-            <div className="bg-slate-50 p-6 flex flex-col sm:flex-row gap-3 justify-end">
-              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-11 font-bold text-slate-500 hover:text-slate-700">Batal</Button>
-              <Button type="submit" disabled={loading} className="h-11 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 font-bold px-8">
-                {loading ? "Menyimpan..." : "Simpan Data Guru"}
+            <div className="sticky bottom-0 bg-slate-50 p-4 md:p-6 flex flex-row gap-2 md:gap-3 justify-end border-t border-slate-100">
+              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-10 md:h-11 flex-1 md:flex-none font-bold text-slate-500 hover:text-slate-700 text-xs md:text-sm">Batal</Button>
+              <Button type="submit" disabled={loading} className="h-10 md:h-11 flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 font-bold px-4 md:px-8 text-xs md:text-sm">
+                {loading ? "..." : (selectedGuru ? "Simpan Perubahan" : "Simpan Guru")}
               </Button>
             </div>
           </form>

@@ -89,8 +89,16 @@ export default function Kelas() {
   const checkUserRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const role = user.user_metadata?.role;
-      setCanManage(role === "admin" || role === "guru");
+      // Check database first for most accurate role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      const role = profile?.role || user.user_metadata?.role;
+      const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
+      setCanManage(role === "admin" || role === "guru" || isSpecialAdmin);
     }
   };
 
@@ -523,16 +531,16 @@ export default function Kelas() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 pb-20 md:pb-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Manajemen Kelas</h1>
-          <p className="text-sm text-slate-500">Daftar kelas dan wali kelas SDN 1 Dukuhwaluh</p>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Manajemen Kelas</h1>
+          <p className="text-xs md:text-sm text-slate-500">Daftar kelas dan wali kelas SDN 1 Dukuhwaluh</p>
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="flex-1 sm:flex-none gap-2 h-9 md:h-10 text-xs md:text-sm">
                 <Download size={16} /> Export
               </Button>
             </DropdownMenuTrigger>
@@ -548,8 +556,8 @@ export default function Kelas() {
             </DropdownMenuContent>
           </DropdownMenu>
           {canManage && (
-            <Button onClick={() => { setSelectedKelas(null); setIsDialogOpen(true); }} className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100">
-              <Plus size={16} className="mr-2" /> Tambah Kelas
+            <Button onClick={() => { setSelectedKelas(null); setIsDialogOpen(true); }} className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 h-9 md:h-10 text-xs md:text-sm">
+              <Plus size={16} className="mr-0 sm:mr-2" /> <span className="hidden sm:inline">Tambah Kelas</span>
             </Button>
           )}
         </div>
@@ -740,15 +748,15 @@ export default function Kelas() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-100 overflow-hidden">
+            <div className="rounded-xl border border-slate-100 overflow-x-auto">
               <Table>
                 <TableHeader className="bg-slate-50">
                   <TableRow>
-                    <TableHead className="font-bold">NISN</TableHead>
-                    <TableHead className="font-bold">Nama Lengkap</TableHead>
-                    <TableHead className="font-bold">TTL</TableHead>
-                    <TableHead className="font-bold">Alamat & Orang Tua</TableHead>
-                    {canManage && <TableHead className="text-right font-bold">Aksi</TableHead>}
+                    <TableHead className="font-bold text-[10px] md:text-sm">NISN</TableHead>
+                    <TableHead className="font-bold text-[10px] md:text-sm">Nama Lengkap</TableHead>
+                    <TableHead className="font-bold text-[10px] md:text-sm">TTL</TableHead>
+                    <TableHead className="font-bold text-[10px] md:text-sm">Alamat & Ortu</TableHead>
+                    {canManage && <TableHead className="text-right font-bold text-[10px] md:text-sm">Aksi</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -759,23 +767,23 @@ export default function Kelas() {
                   ) : students.length > 0 ? (
                     students.map(student => (
                       <TableRow key={student.id} className="hover:bg-slate-50/50">
-                        <TableCell className="font-mono text-xs text-slate-500 font-medium">{student.nisn || "-"}</TableCell>
-                        <TableCell className="font-bold text-slate-800">
+                        <TableCell className="font-mono text-[10px] md:text-xs text-slate-500 font-medium">{student.nisn || "-"}</TableCell>
+                        <TableCell className="font-bold text-slate-800 text-xs md:text-sm">
                           {student.full_name}
-                          <div className="text-[10px] text-slate-400 font-normal">{student.phone || "No HP -"}</div>
+                          <div className="text-[9px] md:text-[10px] text-slate-400 font-normal">{student.phone || "No HP -"}</div>
                         </TableCell>
                         <TableCell>
-                          <div className="text-xs text-slate-600">
+                          <div className="text-[10px] md:text-xs text-slate-600">
                             {student.pob || "-"}, {student.dob || "-"}
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                              <MapPin size={12} className="text-slate-400" />
-                              {student.origin || "-"}
+                            <div className="flex items-center gap-1.5 text-[10px] md:text-xs text-slate-500 font-medium">
+                              <MapPin size={12} className="text-slate-400 shrink-0" />
+                              <span className="truncate max-w-[100px] md:max-w-none">{student.origin || "-"}</span>
                             </div>
-                            <div className="text-[10px] text-slate-400">Ortu: {student.parent_name || "-"}</div>
+                            <div className="text-[9px] md:text-[10px] text-slate-400">Ortu: {student.parent_name || "-"}</div>
                           </div>
                         </TableCell>
                         {canManage && (
@@ -812,7 +820,7 @@ export default function Kelas() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={canManage ? 5 : 4} className="text-center py-12 text-slate-400 italic">
+                      <TableCell colSpan={canManage ? 5 : 4} className="text-center py-12 text-slate-400 italic text-xs">
                         Belum ada data murid di kelas ini
                       </TableCell>
                     </TableRow>
