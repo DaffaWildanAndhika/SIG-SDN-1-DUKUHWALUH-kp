@@ -254,39 +254,7 @@ export default function Login() {
                 </button>
               </div>
 
-              {!isSignUp && (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 w-full space-y-3">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-                      Akses Administrator:
-                    </p>
-                    <button 
-                      type="button"
-                      onClick={() => { setEmail("admin@sekolah.id"); setPassword("admin123"); }}
-                      className="text-[11px] text-slate-600 hover:bg-white hover:shadow-sm p-2 rounded-lg transition-all text-left flex items-center justify-between w-full font-bold border border-transparent hover:border-blue-100"
-                    >
-                      <span className="text-blue-600">Login sebagai Admin</span>
-                      <span className="font-mono text-blue-400 group-hover:text-blue-600">admin@sekolah.id</span>
-                    </button>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-200">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                      Akses Guru:
-                    </p>
-                    <button 
-                      type="button"
-                      onClick={() => { setEmail("guru@sekolah.id"); setPassword("guru123"); }}
-                      className="text-[11px] text-slate-600 hover:bg-white hover:shadow-sm p-2 rounded-lg transition-all text-left flex items-center justify-between w-full font-medium border border-transparent hover:border-green-100"
-                    >
-                      <span>Login Akun Guru</span>
-                      <span className="font-mono text-green-600">guru@sekolah.id</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+              
             </CardFooter>
           </form>
         </Card>
