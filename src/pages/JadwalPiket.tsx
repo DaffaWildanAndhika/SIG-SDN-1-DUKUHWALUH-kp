@@ -9,7 +9,11 @@ import {
   Edit2,
   Trash2,
   MoreVertical,
-  CalendarCheck
+  CalendarCheck,
+  ChevronRight,
+  UserCircle,
+  Layout,
+  ArrowRight
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +23,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle,
+  DialogDescription,
   DialogFooter 
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -32,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "motion/react";
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
@@ -82,7 +88,6 @@ export default function JadwalPiket() {
   const checkUserRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      // Check database profile for most accurate role
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
@@ -91,7 +96,7 @@ export default function JadwalPiket() {
       
       const role = profile?.role || user.user_metadata?.role;
       const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
-      setCanManage(role === "admin" || role === "guru" || isSpecialAdmin);
+      setCanManage(role === "admin" || isSpecialAdmin);
     }
   };
 
@@ -106,7 +111,8 @@ export default function JadwalPiket() {
       const { data, error } = await supabase
         .from('picket_schedules')
         .select('*, guru:profiles(full_name)')
-        .eq('day', selectedDay);
+        .eq('day', selectedDay)
+        .order('shift');
       
       if (error) throw error;
       setPiketList(data || []);
@@ -166,214 +172,271 @@ export default function JadwalPiket() {
   };
 
   return (
-    <div className="space-y-8 pb-20 md:pb-10">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-8 pb-12">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Jadwal Piket Guru</h1>
-          <p className="text-sm text-slate-500">Monitoring kehadiran dan tugas piket harian</p>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-8 h-[2px] bg-blue-600 rounded-full"></span>
+            <span className="text-blue-600 font-black text-[10px] uppercase tracking-[0.2em]">Monitoring</span>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Jadwal Piket</h1>
+          <p className="text-slate-500 font-medium mt-1">
+            Pengaturan kehadiran dan tugas piket personil <span className="text-slate-900 font-bold">SDN 1 Dukuhwaluh</span>.
+          </p>
         </div>
         {canManage && (
-          <Button onClick={() => { setSelectedPiket(null); setIsDialogOpen(true); }} className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100">
-            <Plus size={16} /> Tambah Jadwal
+          <Button 
+            onClick={() => { setSelectedPiket(null); setIsDialogOpen(true); }} 
+            className="h-11 px-6 bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-200 rounded-xl transition-all flex items-center gap-2 group"
+          >
+            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> 
+            <span>Tambah Jadwal</span>
           </Button>
         )}
       </div>
 
-      <div className="flex overflow-x-auto pb-2 gap-2 scrollbar-hide">
+      {/* Day Selector */}
+      <div className="bg-white p-2 border border-slate-100 rounded-2xl shadow-sm flex overflow-x-auto gap-1 custom-scrollbar">
         {DAYS.map(day => (
           <button
             key={day}
             onClick={() => setSelectedDay(day)}
-            className={`px-6 py-3 rounded-xl font-bold transition-all duration-200 whitespace-nowrap ${selectedDay === day ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white text-slate-500 hover:bg-slate-100 hover:text-blue-600 border border-slate-200'}`}
+            className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${
+              selectedDay === day 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' 
+                : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+            }`}
           >
             {day}
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {loading ? (
-          Array(4).fill(0).map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="h-48"></CardContent>
-            </Card>
-          ))
-        ) : piketList.length > 0 ? (
-          piketList.map(item => (
-            <Card key={item.id} className="border-none shadow-sm hover:shadow-md transition-all group overflow-hidden">
-              <div className="h-1 bg-blue-600 w-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <Badge variant="secondary" className={`${item.shift === 'Pagi' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'} border-none font-bold uppercase tracking-wider text-[10px]`}>
-                    Shift {item.shift}
-                  </Badge>
-                  {canManage && (
-                    <div className="flex gap-1">
-                      <button onClick={() => { setSelectedPiket(item); setIsDialogOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded">
-                        <Edit2 size={12} />
-                      </button>
-                      <button onClick={() => handleDelete(item.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
-                        <Trash2 size={12} />
-                      </button>
+      {/* Grid Content */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <AnimatePresence mode="popLayout">
+          {loading ? (
+            Array(4).fill(0).map((_, i) => (
+              <Card key={`skeleton-${i}`} className="bg-white rounded-2xl border-none shadow-sm animate-pulse">
+                <div className="h-48"></div>
+              </Card>
+            ))
+          ) : piketList.length > 0 ? (
+            piketList.map((item, index) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <Card className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/40 hover:shadow-2xl hover:shadow-slate-300/40 transition-all group overflow-hidden flex flex-col h-full">
+                  <div className={`h-1.5 w-full ${item.shift === 'Pagi' ? 'bg-blue-600' : 'bg-amber-500'}`}></div>
+                  
+                  <CardHeader className="p-6 pb-2">
+                    <div className="flex justify-between items-center mb-4">
+                      <Badge className={`${
+                        item.shift === 'Pagi' 
+                          ? 'bg-blue-50 text-blue-600 border-blue-100' 
+                          : 'bg-amber-50 text-amber-600 border-amber-100'
+                        } font-black uppercase tracking-widest text-[9px] px-3 py-1 rounded-lg border shadow-sm`}>
+                        Shift {item.shift}
+                      </Badge>
+                      
+                      {canManage && (
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => { setSelectedPiket(item); setIsDialogOpen(true); }} className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                            <Edit2 size={14} />
+                          </button>
+                          <button onClick={() => handleDelete(item.id)} className="h-8 w-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-blue-600">
-                     {item.guru?.full_name?.charAt(0)}
-                  </div>
-                  <div className="overflow-hidden">
-                     <p className="font-bold text-slate-800 truncate">{item.guru?.full_name}</p>
-                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">GURU PIKET</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-2 pt-2 border-t border-slate-50">
-                  {item.picket_date && (
-                    <div className="flex items-center gap-2 text-xs text-blue-600 font-bold leading-none mb-2">
-                      <CalendarIcon size={14} className="shrink-0" />
-                      <span>{new Date(item.picket_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    
+                    <div className="flex items-center gap-4">
+                      <div className={`h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-inner ${
+                        item.shift === 'Pagi' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
+                      }`}>
+                        {item.guru?.full_name?.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-900 leading-tight truncate">{item.guru?.full_name}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Petugas Piket</p>
+                      </div>
                     </div>
-                  )}
-                  <div className="flex items-center gap-2 text-xs text-slate-500 font-medium leading-none">
-                    <MapPin size={14} className="text-slate-400 shrink-0" />
-                    <span className="truncate">{item.location}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-500 font-medium leading-none">
-                    <Clock size={14} className="text-slate-400 shrink-0" />
-                    <span>{item.shift === 'Pagi' ? '06:30 - 13:00' : '13:00 - 16:00'}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        ) : (
-          <Card className="col-span-full py-12 flex flex-col items-center justify-center border-dashed bg-slate-50/50">
-            <CalendarCheck className="text-slate-300 mb-2" size={40} />
-            <p className="text-slate-500 text-sm font-medium">Tidak ada jadwal piket hari ini</p>
-          </Card>
-        )}
+                  </CardHeader>
+                  
+                  <CardContent className="p-6 pt-4 flex-1">
+                    <div className="space-y-4 pt-4 border-t border-slate-50">
+                      {item.picket_date && (
+                        <div className="flex items-start gap-3 group/info">
+                          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover/info:bg-blue-50 group-hover/info:text-blue-600 transition-colors">
+                            <CalendarIcon size={14} />
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Tanggal Tugas</p>
+                            <p className="text-xs font-bold text-slate-600">
+                              {new Date(item.picket_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-start gap-3 group/info">
+                        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover/info:bg-blue-50 group-hover/info:text-blue-600 transition-colors">
+                          <MapPin size={14} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Tempat/Pos</p>
+                          <p className="text-xs font-bold text-slate-600 truncate">{item.location}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3 group/info">
+                        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover/info:bg-blue-50 group-hover/info:text-blue-600 transition-colors">
+                          <Clock size={14} />
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Estimasi Waktu</p>
+                          <p className="text-xs font-bold text-slate-600">
+                            {item.shift === 'Pagi' ? '06:30 - 13:00' : '13:00 - 16:00'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))
+          ) : (
+            <div className="col-span-full py-20 flex flex-col items-center justify-center bg-white rounded-3xl border border-dashed border-slate-200">
+              <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center text-slate-200 mb-4">
+                <CalendarCheck size={40} />
+              </div>
+              <p className="text-slate-900 font-bold">Tidak ada jadwal</p>
+              <p className="text-slate-400 text-sm font-medium mt-1 uppercase tracking-widest text-[10px]">Hari {selectedDay} ini kosong</p>
+              {canManage && (
+                <Button variant="outline" className="mt-6 rounded-xl font-bold h-10 px-6" onClick={() => setIsDialogOpen(true)}>
+                  Buat Jadwal Pertama
+                </Button>
+              )}
+            </div>
+          )}
+        </AnimatePresence>
       </div>
       
-      <div className="bg-blue-600 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden shadow-2xl shadow-blue-200">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-        <div className="relative z-10 flex items-center gap-6">
-          <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md">
-            <CalendarIcon size={32} />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold">Butuh Bantuan Jadwal?</h2>
-            <p className="text-blue-100/80 text-sm font-medium">Reset atau buat ulang jadwal piket bulanan secara otomatis.</p>
-          </div>
-        </div>
-        {canManage ? (
-          <Button variant="outline" className="relative z-10 bg-white text-blue-600 border-none hover:bg-blue-50 font-bold h-12 px-8">
-             Generate Jadwal
-          </Button>
-        ) : (
-          <Button variant="outline" className="relative z-10 bg-white/20 text-white border-white/40 hover:bg-white/30 font-bold h-12 px-8">
-             Cetak Jadwal
-          </Button>
-        )}
-      </div>
-
       {/* Add/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[450px] p-0 border-none overflow-hidden">
-          <div className="bg-blue-600 p-6">
-            <DialogHeader>
-              <DialogTitle className="text-white font-bold">{selectedPiket ? "Edit Jadwal Piket" : "Tambah Jadwal Piket"}</DialogTitle>
-            </DialogHeader>
+        <DialogContent className="w-[95vw] sm:max-w-[500px] p-0 border-none shadow-2xl rounded-3xl overflow-hidden overflow-y-auto max-h-[90vh] custom-scrollbar">
+          <div className="bg-[#0f172a] p-8 text-white relative overflow-hidden shrink-0">
+             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600 rounded-full blur-[120px] opacity-20 -mr-32 -mt-32"></div>
+             <div className="flex items-center gap-5 relative z-10">
+               <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border border-white/10 flex items-center justify-center shadow-inner">
+                  <UserCircle size={32} className="text-blue-400" />
+               </div>
+               <div>
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-black tracking-tight uppercase">
+                      {selectedPiket ? "Sunting Jadwal" : "Jadwal Piket"}
+                    </DialogTitle>
+                    <DialogDescription className="text-slate-400 font-medium text-sm">
+                      Penugasan personil guru piket harian sekolah.
+                    </DialogDescription>
+                  </DialogHeader>
+               </div>
+             </div>
           </div>
           
-          <form onSubmit={handleSave} className="p-6 space-y-4">
-            <div className="space-y-2">
-              <Label>Nama Guru</Label>
-              <Select 
-                value={formData.guru_id} 
-                onValueChange={(val) => setFormData({ ...formData, guru_id: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih guru" />
-                </SelectTrigger>
-                <SelectContent>
-                  {guruList.map(guru => (
-                    <SelectItem key={guru.id} value={guru.id}>{guru.full_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tanggal (Opsional)</Label>
-              <Input 
-                type="date"
-                value={formData.picket_date}
-                onChange={(e) => {
-                  const dateVal = e.target.value;
-                  const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-                  const selectedDayName = dateVal ? dayNames[new Date(dateVal).getDay()] : formData.day;
-                  
-                  // Only auto-set Day if it matches one of our DAYS (Senin-Sabtu)
-                  const finalDay = DAYS.includes(selectedDayName) ? selectedDayName : formData.day;
-                  
-                  setFormData({ ...formData, picket_date: dateVal, day: finalDay });
-                }}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Hari</Label>
+          <form onSubmit={handleSave} className="bg-white">
+            <div className="p-8 space-y-8">
+              <div className="space-y-4">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Petugas Guru</Label>
                 <Select 
-                  value={formData.day} 
-                  onValueChange={(val) => setFormData({ ...formData, day: val })}
+                  value={formData.guru_id} 
+                  onValueChange={(val) => setFormData({ ...formData, guru_id: val })}
                 >
-                  <SelectTrigger className="bg-slate-50">
-                    <SelectValue />
+                  <SelectTrigger className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold text-slate-700 px-4">
+                    <SelectValue placeholder="Pilih guru..." />
                   </SelectTrigger>
-                  <SelectContent>
-                    {DAYS.map(day => (
-                      <SelectItem key={day} value={day}>{day}</SelectItem>
+                  <SelectContent className="rounded-xl border-slate-100">
+                    {guruList.map(guru => (
+                      <SelectItem key={guru.id} value={guru.id} className="font-bold py-2.5">{guru.full_name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Shift</Label>
-                <Select 
-                  value={formData.shift} 
-                  onValueChange={(val) => setFormData({ ...formData, shift: val })}
-                >
-                  <SelectTrigger className="bg-slate-50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Pagi">Pagi</SelectItem>
-                    <SelectItem value="Siang">Siang</SelectItem>
-                  </SelectContent>
-                </Select>
+
+              <div className="space-y-4">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Tanggal (Opsional)</Label>
+                <Input 
+                  type="date"
+                  className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold text-blue-600 px-4"
+                  value={formData.picket_date}
+                  onChange={(e) => {
+                    const dateVal = e.target.value;
+                    const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+                    const selectedDayName = dateVal ? dayNames[new Date(dateVal).getDay()] : formData.day;
+                    const finalDay = DAYS.includes(selectedDayName) ? selectedDayName : formData.day;
+                    setFormData({ ...formData, picket_date: dateVal, day: finalDay });
+                  }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Hari Kerja</Label>
+                  <Select 
+                    value={formData.day} 
+                    onValueChange={(val) => setFormData({ ...formData, day: val })}
+                  >
+                    <SelectTrigger className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {DAYS.map(day => (
+                        <SelectItem key={day} value={day}>{day}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-4">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Waktu (Shift)</Label>
+                  <Select 
+                    value={formData.shift} 
+                    onValueChange={(val) => setFormData({ ...formData, shift: val })}
+                  >
+                    <SelectTrigger className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="Pagi">🌅 Shift Pagi</SelectItem>
+                      <SelectItem value="Siang">☀️ Shift Siang</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Lokasi / Pos Jaga</Label>
+                <Input 
+                  placeholder="Contoh: Gerbang Depan, Lobi Utama..." 
+                  className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold px-4"
+                  value={formData.location}
+                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  required
+                />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Lokasi Tugas</Label>
-              <Input 
-                placeholder="Contoh: Gerbang Utama" 
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                required
-              />
-            </div>
-
-            <DialogFooter className="pt-4">
-              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)}>Batal</Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700 font-bold" disabled={loading}>
+            <div className="p-8 bg-slate-50 flex items-center justify-end gap-4 border-t border-slate-100 mt-2">
+              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-12 px-6 font-black text-slate-400 hover:text-slate-900 rounded-xl">Batal</Button>
+              <Button type="submit" className="h-12 px-10 bg-[#0f172a] hover:bg-slate-800 text-white font-black shadow-xl rounded-xl transition-all" disabled={loading}>
                 {loading ? "Menyimpan..." : "Simpan Jadwal"}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>

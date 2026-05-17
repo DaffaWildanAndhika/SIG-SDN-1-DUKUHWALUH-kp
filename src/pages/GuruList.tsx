@@ -14,7 +14,10 @@ import {
   XCircle,
   Users,
   FileSpreadsheet,
-  FileText
+  FileText,
+  Clock,
+  ArrowRight,
+  UserCircle
 } from "lucide-react";
 import { 
   Table, 
@@ -31,7 +34,8 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogTrigger 
+  DialogDescription,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { 
@@ -50,7 +54,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import type { Profile } from "@/types";
+import { motion, AnimatePresence } from "motion/react";
 import * as XLSX from 'xlsx';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -60,6 +64,7 @@ export default function GuruList() {
   const [data, setData] = useState<any[]>([]);
   const [canManage, setCanManage] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedGuru, setSelectedGuru] = useState<any>(null);
   
@@ -131,12 +136,23 @@ export default function GuruList() {
 
   const filteredData = (data || []).filter(item => {
     if (!item) return false;
+    
+    // Search filter
     const nameMatch = item.full_name?.toLowerCase().includes(searchTerm.toLowerCase());
     const nipMatch = item.nip?.includes(searchTerm);
-    return nameMatch || nipMatch;
+    const searchCondition = nameMatch || nipMatch;
+
+    // Status filter
+    const statusCondition = 
+      statusFilter === "all" || 
+      (statusFilter === "active" && item.is_active) || 
+      (statusFilter === "inactive" && !item.is_active);
+
+    return searchCondition && statusCondition;
   });
 
-  const handleSave = async (formData: any) => {
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
     try {
       if (selectedGuru) {
@@ -147,17 +163,13 @@ export default function GuruList() {
         if (error) throw error;
         toast.success("Data guru berhasil diperbarui");
       } else {
-        // Create a new record
         const insertData: any = {
           ...formData,
           role: 'guru'
         };
         
-        // Only provide ID if we can generate a valid one, otherwise let DB handle it
         const newId = window.crypto?.randomUUID?.();
-        if (newId) {
-          insertData.id = newId;
-        }
+        if (newId) insertData.id = newId;
 
         const { error } = await supabase
           .from('profiles')
@@ -165,7 +177,7 @@ export default function GuruList() {
         
         if (error) {
           if (error.message?.includes("foreign key constraint")) {
-            throw new Error("Gagal: Tabel 'profiles' terhubung ketat dengan Auth Users. Silakan jalankan SQL di SUPABASE_SETUP.md (Bagian Update) untuk mengizinkan input manual.");
+            throw new Error("Gagal: Tabel 'profiles' terhubung ketat dengan Auth Users.");
           }
           throw error;
         }
@@ -181,23 +193,12 @@ export default function GuruList() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Apakah Anda yakin ingin menghapus data guru ini? Menghapus guru ini akan melepaskan jabatan wali kelas dan menghapus referensi penulis pada pengumuman.")) {
+    if (confirm("Apakah Anda yakin ingin menghapus data guru ini?")) {
       try {
         setLoading(true);
-        
-        // 1. Clear references in announcements (set author_id to null)
-        await supabase
-          .from('announcements')
-          .update({ author_id: null })
-          .eq('author_id', id);
+        await supabase.from('announcements').update({ author_id: null }).eq('author_id', id);
+        await supabase.from('classes').update({ wali_kelas_id: null }).eq('wali_kelas_id', id);
 
-        // 2. Clear references in classes (set wali_kelas_id to null)
-        await supabase
-          .from('classes')
-          .update({ wali_kelas_id: null })
-          .eq('wali_kelas_id', id);
-
-        // 3. Delete the profile
         const { error } = await supabase
           .from('profiles')
           .delete()
@@ -229,30 +230,22 @@ export default function GuruList() {
       const worksheet = XLSX.utils.json_to_sheet(exportData);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Data Guru");
-      XLSX.writeFile(workbook, `Data_Guru_SDN1_Dukuhwaluh_${new Date().toLocaleDateString('id-ID')}.xlsx`);
-      toast.success("Data guru berhasil diexport ke Excel");
+      XLSX.writeFile(workbook, `Data_Guru_${new Date().toLocaleDateString('id-ID')}.xlsx`);
+      toast.success("Export Excel berhasil");
     } catch (error) {
-      console.error("Excel Export Error:", error);
-      toast.error("Gagal mengeksport ke Excel");
+      toast.error("Gagal export Excel");
     }
   };
 
   const exportToPDF = () => {
     try {
       const doc = new jsPDF();
-      
-      // Add School Header Info
       doc.setFontSize(18);
-      doc.setTextColor(37, 99, 235); // blue-600
+      doc.setTextColor(37, 99, 235);
       doc.text("SDN 1 DUKUHWALUH", 14, 20);
-      
-      doc.setFontSize(14);
-      doc.setTextColor(30, 41, 59); // slate-800
-      doc.text("Data Profil Guru dan Tenaga Kependidikan", 14, 30);
-      
       doc.setFontSize(10);
-      doc.setTextColor(100, 116, 139); // slate-400
-      doc.text(`Dicetak pada: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, 14, 38);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Data Guru - ${new Date().toLocaleDateString('id-ID')}`, 14, 28);
 
       const tableData = filteredData.map((guru, index) => [
         index + 1,
@@ -264,308 +257,374 @@ export default function GuruList() {
       ]);
 
       autoTable(doc, {
-        startY: 45,
-        head: [['No', 'Nama Guru', 'NIP', 'JK', 'Mata Pelajaran', 'Status']],
+        startY: 35,
+        head: [['No', 'Nama Guru', 'NIP', 'JK', 'Mapel', 'Status']],
         body: tableData,
-        theme: 'striped',
-        headStyles: { 
-          fillColor: [37, 99, 235],
-          textColor: [255, 255, 255],
-          fontSize: 10,
-          fontStyle: 'bold'
-        },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        margin: { top: 45 },
+        headStyles: { fillColor: [37, 99, 235] },
       });
 
-      doc.save(`Data_Guru_SDN1_Dukuhwaluh_${new Date().toISOString().split('T')[0]}.pdf`);
-      toast.success("Data guru berhasil diexport ke PDF");
+      doc.save(`Data_Guru_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.success("Export PDF berhasil");
     } catch (error) {
-      console.error("PDF Export Error:", error);
-      toast.error("Gagal mengeksport ke PDF");
+      toast.error("Gagal export PDF");
     }
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-10">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div className="space-y-8 pb-12">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Data Guru</h1>
-          <p className="text-xs md:text-sm text-slate-500">Kelola informasi guru SDN 1 Dukuhwaluh</p>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-8 h-[2px] bg-blue-600 rounded-full"></span>
+            <span className="text-blue-600 font-black text-[10px] uppercase tracking-[0.2em]">Database</span>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Data Guru</h1>
+          <p className="text-slate-500 font-medium mt-1">
+            Manajemen informasi dan tenaga kependidikan <span className="text-slate-900 font-bold">SDN 1 Dukuhwaluh</span>.
+          </p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="flex-1 md:flex-none gap-2 h-9 md:h-10 text-xs md:text-sm">
-                <Download size={16} /> Export
+              <Button variant="outline" className="h-11 px-5 border-slate-200 font-bold text-slate-600 hover:bg-slate-50 rounded-xl transition-all">
+                <Download size={18} className="mr-2" /> Export
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[180px]">
-              <DropdownMenuItem onClick={exportToExcel} className="gap-2 cursor-pointer">
-                <FileSpreadsheet size={16} className="text-emerald-600" />
-                <span>Export ke Excel</span>
+            <DropdownMenuContent align="end" className="w-[200px] rounded-xl p-2 border-slate-100 shadow-xl">
+              <DropdownMenuItem onClick={exportToExcel} className="rounded-lg py-2.5 cursor-pointer gap-3 font-medium">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                  <FileSpreadsheet size={16} className="text-emerald-600" />
+                </div>
+                <span>Excel Spreadsheet</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportToPDF} className="gap-2 cursor-pointer">
-                <FileText size={16} className="text-red-600" />
-                <span>Export ke PDF</span>
+              <DropdownMenuItem onClick={exportToPDF} className="rounded-lg py-2.5 cursor-pointer gap-3 font-medium">
+                <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                  <FileText size={16} className="text-red-600" />
+                </div>
+                <span>PDF Document</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
           {canManage && (
-            <Button onClick={() => { setSelectedGuru(null); setIsDialogOpen(true); }} className="flex-1 md:flex-none gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 h-9 md:h-10 text-xs md:text-sm">
-              <Plus size={16} /> <span className="hidden sm:inline">Tambah Guru</span><span className="sm:hidden">Tambah</span>
+            <Button 
+               onClick={() => { setSelectedGuru(null); setIsDialogOpen(true); }} 
+               className="h-11 px-6 bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-200 rounded-xl transition-all flex items-center gap-2 group"
+            >
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> 
+              <span>Tambah Guru</span>
             </Button>
           )}
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-3 md:p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <Input 
-              placeholder="Cari nama/NIP..." 
-              className="pl-10 h-9 md:h-10 border-slate-200 text-sm" 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Select defaultValue="all">
-              <SelectTrigger className="flex-1 sm:w-[150px] h-9 md:h-10 border-slate-200 text-sm">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="active">Aktif</SelectItem>
-                <SelectItem value="inactive">Non-aktif</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="icon" className="h-9 md:h-10 w-9 md:w-10 border-slate-200 shrink-0">
-              <Filter size={16} className="text-slate-500" />
-            </Button>
-          </div>
+      {/* Stats Quick Overview */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 group hover:shadow-md transition-all">
+           <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <Users size={24} />
+           </div>
+           <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Guru</p>
+              <p className="text-2xl font-black text-slate-900">{data.length}</p>
+           </div>
         </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 group hover:shadow-md transition-all">
+           <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+              <CheckCircle2 size={24} />
+           </div>
+           <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Status Aktif</p>
+              <p className="text-2xl font-black text-slate-900">{data.filter(g => g.is_active).length}</p>
+           </div>
+        </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 group hover:shadow-md transition-all">
+           <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+              <UserCircle size={24} />
+           </div>
+           <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Update Terakhir</p>
+              <p className="text-sm font-black text-slate-900">Hari ini</p>
+           </div>
+        </div>
+      </div>
 
+      {/* Filter & Search Section */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-6 flex flex-col md:flex-row gap-4 items-center">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300" />
+          <Input 
+            placeholder="Cari berdasarkan nama atau NIP..." 
+            className="pl-12 h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-medium rounded-xl" 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full md:w-[180px] h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold text-slate-600 px-4">
+              <SelectValue placeholder="Semua Status" />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl border-slate-100">
+              <SelectItem value="all">Semua Status</SelectItem>
+              <SelectItem value="active">Guru Aktif</SelectItem>
+              <SelectItem value="inactive">Non-aktif</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" className="h-12 w-12 border-slate-100 flex items-center justify-center shrink-0 rounded-xl text-slate-400">
+            <Filter size={20} />
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Table Section */}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-slate-50/50">
               <TableRow className="hover:bg-transparent border-slate-100">
-                <TableHead className="w-[80px]">Foto</TableHead>
-                <TableHead>Guru</TableHead>
-                <TableHead>NIP</TableHead>
-                <TableHead>Mata Pelajaran</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
+                <TableHead className="w-[100px] h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-8">Inisial</TableHead>
+                <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Identitas Guru</TableHead>
+                <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Kredensial (NIP)</TableHead>
+                <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Bidang Keahlian</TableHead>
+                <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</TableHead>
+                <TableHead className="w-[120px] h-14 text-right pr-8 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                Array(5).fill(0).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell><div className="h-10 w-10 bg-slate-100 rounded-full animate-pulse" /></TableCell>
-                    <TableCell><div className="h-4 w-32 bg-slate-100 rounded animate-pulse" /></TableCell>
-                    <TableCell><div className="h-4 w-24 bg-slate-100 rounded animate-pulse" /></TableCell>
-                    <TableCell><div className="h-4 w-24 bg-slate-100 rounded animate-pulse" /></TableCell>
-                    <TableCell><div className="h-6 w-16 bg-slate-100 rounded-full animate-pulse" /></TableCell>
-                    <TableCell className="text-right"><div className="h-8 w-8 bg-slate-100 rounded float-right animate-pulse" /></TableCell>
+              <AnimatePresence mode="popLayout">
+                {loading ? (
+                  Array(5).fill(0).map((_, i) => (
+                    <TableRow key={`skeleton-${i}`} className="border-slate-50">
+                      <TableCell className="pl-8 py-6"><div className="h-12 w-12 bg-slate-50 rounded-2xl animate-pulse" /></TableCell>
+                      <TableCell><div className="space-y-2"><div className="h-4 w-40 bg-slate-50 rounded animate-pulse" /><div className="h-3 w-24 bg-slate-50 rounded animate-pulse" /></div></TableCell>
+                      <TableCell><div className="h-4 w-32 bg-slate-50 rounded animate-pulse" /></TableCell>
+                      <TableCell><div className="h-4 w-24 bg-slate-50 rounded animate-pulse" /></TableCell>
+                      <TableCell><div className="h-6 w-20 bg-slate-50 rounded-full animate-pulse" /></TableCell>
+                      <TableCell className="pr-8"><div className="h-9 w-9 bg-slate-50 rounded-lg float-right animate-pulse" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : filteredData.length > 0 ? (
+                  filteredData.map((guru, index) => (
+                    <motion.tr
+                      layout
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ delay: index * 0.05 }}
+                      key={guru.id} 
+                      className="group hover:bg-blue-50/30 transition-colors border-slate-50 last:border-0"
+                    >
+                      <TableCell className="pl-8 py-5">
+                        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 flex items-center justify-center font-black text-blue-600 shadow-sm relative group-hover:scale-110 transition-transform">
+                          {guru.full_name.charAt(0)}
+                          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${guru.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors">{guru.full_name}</div>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">
+                           <Phone size={10} className="text-slate-300" /> {guru.phone || "No HP Kosong"}
+                           {guru.gender === "Laki-laki" ? <span className="text-blue-300">♂</span> : <span className="text-pink-300">♀</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs font-black text-slate-400 tracking-widest bg-slate-50/30 rounded-lg px-3 py-1 scale-95 origin-left">
+                        {guru.nip || "BELUM ADA NIP"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="bg-slate-900/5 hover:bg-slate-900/10 text-slate-900 border-none font-bold text-[10px] px-3 py-1 rounded-lg uppercase tracking-wider">
+                          {guru.subject || "UMUM"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {guru.is_active ? (
+                          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-widest border border-emerald-100">
+                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                             Aktif
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest border border-slate-100">
+                             <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                             Non-Aktif
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right pr-8">
+                        {canManage && (
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => { setSelectedGuru(guru); setIsDialogOpen(true); }}
+                              className="h-10 w-10 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl"
+                            >
+                              <Edit2 size={16} />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleDelete(guru.id)} 
+                              className="h-10 w-10 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </motion.tr>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-80 text-center">
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex flex-col items-center justify-center gap-4 text-slate-300 max-w-xs mx-auto"
+                      >
+                        <div className="w-20 h-20 rounded-3xl bg-slate-50 flex items-center justify-center">
+                          <Users size={40} className="text-slate-200" />
+                        </div>
+                        <div>
+                          <p className="text-slate-900 font-bold">Data tidak ditemukan</p>
+                          <p className="text-sm font-medium mt-1">Coba gunakan kata kunci pencarian lain atau ubah filter status.</p>
+                        </div>
+                        <Button variant="outline" className="mt-2 rounded-xl h-10 px-6 font-bold" onClick={() => { setSearchTerm(""); setStatusFilter("all"); }}>
+                          Reset Semua Filter
+                        </Button>
+                      </motion.div>
+                    </TableCell>
                   </TableRow>
-                ))
-              ) : filteredData.length > 0 ? (
-                filteredData.map((guru) => (
-                  <TableRow key={guru.id} className="hover:bg-slate-50/50 border-slate-50">
-                    <TableCell>
-                      <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600 text-sm">
-                        {guru.full_name.charAt(0)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-semibold text-slate-800">{guru.full_name}</div>
-                      <div className="text-xs text-slate-500 font-medium">{guru.phone}</div>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-slate-600 tracking-wider">
-                      {guru.nip}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-none font-medium text-[10px] uppercase tracking-wider">
-                        {guru.subject}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {guru.is_active ? (
-                        <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-bold">
-                          <CheckCircle2 size={14} /> Aktif
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 text-slate-400 text-xs font-bold">
-                          <XCircle size={14} /> Non-aktif
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {canManage && (
-                        <div className="flex justify-end gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => { setSelectedGuru(guru); setIsDialogOpen(true); }}
-                            className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
-                          >
-                            <Edit2 size={14} />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(guru.id)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-64 text-center">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="bg-slate-50 p-4 rounded-full">
-                        <Users className="text-slate-300" size={32} />
-                      </div>
-                      <p className="text-slate-500 font-medium">Tidak ada data guru yang ditemukan</p>
-                      <Button variant="outline" size="sm" onClick={() => setSearchTerm("")}>Reset Pencarian</Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
+                )}
+              </AnimatePresence>
             </TableBody>
           </Table>
         </div>
 
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between">
-          <p className="text-xs text-slate-500 font-medium">Menampilkan {filteredData.length} dari {data.length} guru</p>
+        <div className="p-6 bg-slate-50/30 border-t border-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">
+            Terarsip <span className="text-blue-600">{filteredData.length}</span> Guru dari <span className="text-slate-900">{data.length}</span> Total Personil
+          </p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-3 border-slate-200" disabled>Sebelumnya</Button>
-            <Button variant="outline" size="sm" className="h-8 px-3 border-slate-200">Selanjutnya</Button>
+            <Button variant="outline" className="h-10 px-5 border-slate-100 font-bold text-slate-400 bg-white rounded-xl" disabled>Prev</Button>
+            <Button variant="outline" className="h-10 px-5 border-slate-200 font-bold text-slate-900 bg-white shadow-sm hover:bg-slate-50 rounded-xl">Next Page</Button>
           </div>
         </div>
       </div>
 
-      {/* Add/Edit Dialog */}
+      {/* Modern Dialog Form */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-[600px] max-h-[95vh] overflow-y-auto border-none shadow-2xl p-0 scrollbar-hide">
-          <div className="sticky top-0 z-20 bg-blue-600 p-4 md:p-6 flex items-center justify-between shrink-0">
-            <div>
-              <DialogHeader>
-                <DialogTitle className="text-lg md:text-xl font-bold text-white">
-                  {selectedGuru ? "Edit Data Guru" : "Tambah Guru Baru"}
-                </DialogTitle>
-              </DialogHeader>
-              <p className="text-blue-100/80 text-[10px] md:text-xs mt-1 font-medium">
-                Sistem Informasi Administrasi SDN 1 Dukuhwaluh
-              </p>
-            </div>
-            <div className="bg-white/20 p-2 md:p-3 rounded-xl backdrop-blur-sm shrink-0">
-                <Users className="text-white" size={20} />
-            </div>
+        <DialogContent className="w-[95vw] sm:max-w-[700px] max-h-[90vh] p-0 border-none shadow-2xl rounded-3xl overflow-hidden overflow-y-auto custom-scrollbar">
+          <div className="bg-[#0f172a] p-8 text-white relative overflow-hidden shrink-0">
+             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600 rounded-full blur-[120px] opacity-20 -mr-32 -mt-32"></div>
+             <div className="flex items-center gap-5 relative z-10">
+               <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border border-white/10 flex items-center justify-center shadow-inner">
+                  <UserCircle size={32} className="text-blue-400" />
+               </div>
+               <div>
+                  <DialogHeader>
+                    <DialogTitle className="text-3xl font-black tracking-tight uppercase">
+                      {selectedGuru ? "Sunting Profil" : "Guru Baru"}
+                    </DialogTitle>
+                    <DialogDescription className="text-slate-400 font-medium text-sm">
+                      Lengkapi data personil tenaga kependidikan untuk arsip sekolah.
+                    </DialogDescription>
+                  </DialogHeader>
+               </div>
+             </div>
           </div>
           
-          <form onSubmit={(e) => { e.preventDefault(); handleSave(formData); }} className="flex flex-col">
-            <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold text-xs md:text-sm">NIP</Label>
-                  <Input 
-                    placeholder="Contoh: 19850312..." 
-                    className="h-10 border-slate-200 focus:ring-blue-500 text-sm"
-                    value={formData.nip}
-                    onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold text-xs md:text-sm">Nama Lengkap</Label>
-                  <Input 
-                    placeholder="Nama beserta gelar" 
-                    className="h-10 border-slate-200 focus:ring-blue-500 text-sm" 
-                    value={formData.full_name}
-                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold text-xs md:text-sm">Jenis Kelamin</Label>
-                  <Select 
-                    value={formData.gender}
-                    onValueChange={(val) => setFormData({ ...formData, gender: val as any })}
-                  >
-                    <SelectTrigger className="h-10 border-slate-200 text-sm">
-                      <SelectValue placeholder="Pilih jenis kelamin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Laki-laki">Laki-laki</SelectItem>
-                      <SelectItem value="Perempuan">Perempuan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold text-xs md:text-sm">Mata Pelajaran</Label>
-                  <Input 
-                    placeholder="Mapel yang diampu" 
-                    className="h-10 border-slate-200 focus:ring-blue-500 text-sm" 
-                    value={formData.subject}
-                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold text-xs md:text-sm">No. HP</Label>
-                  <Input 
-                    placeholder="Contoh: 0812..." 
-                    className="h-10 border-slate-200 focus:ring-blue-500 text-sm" 
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold text-xs md:text-sm">Status Keaktifan</Label>
-                  <div className="flex items-center gap-4 h-10 px-1">
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="radio" 
-                        id="active" 
-                        name="status" 
-                        checked={formData.is_active} 
-                        onChange={() => setFormData({ ...formData, is_active: true })}
-                        className="accent-blue-600" 
-                      />
-                      <label htmlFor="active" className="text-xs md:text-sm font-medium text-slate-700 cursor-pointer">Aktif</label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="radio" 
-                        id="inactive" 
-                        name="status" 
-                        checked={!formData.is_active} 
-                        onChange={() => setFormData({ ...formData, is_active: false })}
-                        className="accent-blue-600" 
-                      />
-                      <label htmlFor="inactive" className="text-xs md:text-sm font-medium text-slate-700 cursor-pointer">Non-aktif</label>
+          <form onSubmit={handleSave} className="bg-white">
+            <div className="p-8 space-y-8">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nama Lengkap & Gelar</Label>
+                    <Input 
+                      placeholder="Masukkan nama lengkap..." 
+                      className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl" 
+                      value={formData.full_name}
+                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Nomor Induk Pegawai (NIP)</Label>
+                    <Input 
+                      placeholder="Input NIP jika ada..." 
+                      className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl font-mono text-blue-600"
+                      value={formData.nip}
+                      onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Jenis Kelamin</Label>
+                    <Select 
+                      value={formData.gender}
+                      onValueChange={(val) => setFormData({ ...formData, gender: val as any })}
+                    >
+                      <SelectTrigger className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold text-slate-700">
+                        <SelectValue placeholder="Pilih jenis kelamin" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-slate-100 shadow-xl">
+                        <SelectItem value="Laki-laki">👨 Laki-laki</SelectItem>
+                        <SelectItem value="Perempuan">👩 Perempuan</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Bidang Studi (Mata Pelajaran)</Label>
+                    <Input 
+                      placeholder="Contoh: Matematika, IPA..." 
+                      className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl" 
+                      value={formData.subject}
+                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Kontak Person (Handphone)</Label>
+                    <Input 
+                      placeholder="Nomor Whatsapp Aktif..." 
+                      className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl" 
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Status Kepegawaian</Label>
+                    <div className="flex items-center gap-6 h-12 px-4 bg-slate-50 border border-slate-100 rounded-xl">
+                      <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setFormData({ ...formData, is_active: true })}>
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${formData.is_active ? 'border-blue-600 bg-blue-600' : 'border-slate-300'}`}>
+                           {formData.is_active && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                        </div>
+                        <span className={`text-xs font-black uppercase tracking-wider ${formData.is_active ? 'text-blue-600' : 'text-slate-400'}`}>Aktif</span>
+                      </div>
+                      <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setFormData({ ...formData, is_active: false })}>
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${!formData.is_active ? 'border-red-500 bg-red-500' : 'border-slate-300'}`}>
+                           {!formData.is_active && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                        </div>
+                        <span className={`text-xs font-black uppercase tracking-wider ${!formData.is_active ? 'text-red-500' : 'text-slate-400'}`}>Cuti / Non-aktif</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label className="text-slate-700 font-bold text-xs md:text-sm">Alamat</Label>
-                <textarea 
-                  className="w-full min-h-[80px] md:min-h-[100px] p-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
-                  placeholder="Alamat lengkap tempat tinggal"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                ></textarea>
-              </div>
+               </div>
+               
+               <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Keterangan Alamat / Rumah</Label>
+                  <textarea 
+                    className="w-full min-h-[120px] p-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none text-sm font-bold text-slate-700 focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all resize-none"
+                    placeholder="Contoh: Jl. Merdeka No. 123, Purwokerto..."
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  ></textarea>
+               </div>
             </div>
 
-            <div className="sticky bottom-0 bg-slate-50 p-4 md:p-6 flex flex-row gap-2 md:gap-3 justify-end border-t border-slate-100">
-              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-10 md:h-11 flex-1 md:flex-none font-bold text-slate-500 hover:text-slate-700 text-xs md:text-sm">Batal</Button>
-              <Button type="submit" disabled={loading} className="h-10 md:h-11 flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 font-bold px-4 md:px-8 text-xs md:text-sm">
-                {loading ? "..." : (selectedGuru ? "Simpan Perubahan" : "Simpan Guru")}
+            <div className="p-8 bg-slate-50 flex items-center justify-end gap-4 border-t border-slate-100">
+              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-12 px-6 font-black text-slate-400 hover:text-slate-900 rounded-xl">Batal</Button>
+              <Button type="submit" disabled={loading} className="h-12 px-10 bg-[#0f172a] hover:bg-slate-800 text-white font-black shadow-xl rounded-xl transition-all flex items-center gap-3">
+                {loading ? "Memproses..." : (selectedGuru ? "Simpan Perubahan" : "Terbitkan Profil")}
+                {!loading && <ArrowRight size={18} />}
               </Button>
             </div>
           </form>

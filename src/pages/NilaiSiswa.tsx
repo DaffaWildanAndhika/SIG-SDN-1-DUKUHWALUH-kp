@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { 
   GraduationCap, 
   Search, 
@@ -26,6 +27,7 @@ import { toast } from "sonner";
 import XLSX from "xlsx-js-style";
 
 export default function NilaiSiswa() {
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [classList, setClassList] = useState<any[]>([]);
@@ -65,7 +67,14 @@ export default function NilaiSiswa() {
       
       const role = profile?.role || user.user_metadata?.role || "guru";
       const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
-      setUserRole(isSpecialAdmin ? "admin" : role);
+      const finalRole = isSpecialAdmin ? "admin" : role;
+      setUserRole(finalRole);
+      
+      // If user is guru or kepala_sekolah, they CAN manage grades
+      const canEdit = finalRole === "admin" || finalRole === "guru" || finalRole === "kepala_sekolah";
+      if (!canEdit) {
+        toast.error("Anda tidak memiliki akses untuk menginput nilai.");
+      }
     }
   };
 
@@ -77,8 +86,19 @@ export default function NilaiSiswa() {
         .order('name');
       if (error) throw error;
       setClassList(data || []);
-      if (data && data.length > 0) {
+      
+      // Handle URL params
+      const paramClassId = searchParams.get("classId");
+      const paramSubject = searchParams.get("subject");
+      
+      if (paramClassId) {
+        setSelectedClassId(paramClassId);
+      } else if (data && data.length > 0) {
         setSelectedClassId(data[0].id);
+      }
+
+      if (paramSubject) {
+        setSelectedSubject(paramSubject);
       }
     } catch (error: any) {
       toast.error("Gagal memuat kelas: " + error.message);
@@ -603,121 +623,149 @@ export default function NilaiSiswa() {
   };
 
   return (
-    <div className="space-y-6 pb-20">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-3">
-            <GraduationCap className="text-blue-600 shrink-0" /> Input Nilai Siswa
+    <div className="space-y-10 pb-20 md:pb-12">
+      {/* Enhanced Header Section */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="w-8 h-[2px] bg-blue-600 rounded-full"></span>
+            <span className="text-blue-600 font-black text-[10px] uppercase tracking-[0.2em]">Akademik</span>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4">
+            Input Nilai Siswa
           </h1>
-          <p className="text-xs md:text-sm text-slate-500">
+          <p className="text-slate-500 font-medium max-w-2xl leading-relaxed">
             {viewMode === "harian" 
-              ? "Input nilai per Lingkup Materi (Bab) dengan 4 TP" 
-              : "Rekap Nilai Rapor (Rata-rata Bab + UTS + UAS)"}
+              ? "Input skor TP (Tujuan Pembelajaran) 1-4 untuk setiap Lingkup Materi. Nilai akan dirata-rata otomatis." 
+              : "Finalisasi nilai dengan menginput skor UTS dan UAS. Sistem akan menghitung otomatis Nilai Rapor (Rerata Bab + UTS + UAS) / 3."}
           </p>
+          <div className="flex items-center gap-4 mt-2">
+            <Badge variant="outline" className={`border-blue-200 text-blue-600 font-bold ${viewMode === 'harian' ? 'bg-blue-50' : 'opacity-50'}`}>
+              TP: Input di Mode Harian
+            </Badge>
+            <Badge variant="outline" className={`border-amber-200 text-amber-600 font-bold ${viewMode === 'rapor' ? 'bg-amber-50' : 'opacity-50'}`}>
+              UTS & UAS: Input di Mode Rapor
+            </Badge>
+          </div>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="bg-slate-100 p-1 rounded-xl flex w-full sm:w-auto">
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+          <div className="bg-slate-100/80 backdrop-blur-sm p-1.5 rounded-2xl flex w-full sm:w-auto border border-slate-200/50 shadow-sm">
             <button
               onClick={() => setViewMode("harian")}
-              className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "harian" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${viewMode === "harian" ? "bg-white text-blue-600 shadow-md shadow-blue-100" : "text-slate-500 hover:text-slate-700 hover:bg-white/50"}`}
             >
               Harian / Bab
             </button>
             <button
               onClick={() => setViewMode("rapor")}
-              className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === "rapor" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${viewMode === "rapor" ? "bg-white text-blue-600 shadow-md shadow-blue-100" : "text-slate-500 hover:text-slate-700 hover:bg-white/50"}`}
             >
               Rapor Akhir
             </button>
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button 
-              variant="outline"
-              onClick={exportToExcel}
-              className="flex-1 sm:flex-none border-blue-200 text-blue-600 hover:bg-blue-50 gap-2 font-bold px-3 py-1 h-9 md:h-10 text-xs md:text-sm"
-            >
-               <Download size={16} /> <span className="hidden sm:inline">Ekspor Excel</span><span className="sm:hidden">Excel</span>
-            </Button>
-            <Button 
-              onClick={saveAllGrades} 
-              disabled={saving || loading || !selectedSubject || (viewMode === "harian" && !scopeName)}
-              className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 gap-2 px-3 py-1 h-9 md:h-10 text-xs md:text-sm"
-            >
-              {saving ? "..." : <><Save size={16} /> <span className="hidden sm:inline">Simpan Semua</span><span className="sm:hidden">Simpan</span></>}
-            </Button>
-          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-500 uppercase">Pilih Kelas</label>
-          <Select value={selectedClassId} onValueChange={setSelectedClassId}>
-            <SelectTrigger className="bg-white border-slate-200">
-              <SelectValue placeholder="Pilih Kelas" />
-            </SelectTrigger>
-            <SelectContent>
-              {classList.map(cls => (
-                <SelectItem key={cls.id} value={cls.id}>{cls.name} ({cls.academic_year})</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-500 uppercase">Mata Pelajaran</label>
-          <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-            <SelectTrigger className="bg-white border-slate-200">
-              <SelectValue placeholder="Pilih Mapel" />
-            </SelectTrigger>
-            <SelectContent>
-              {subjects.map(sub => (
-                <SelectItem key={sub} value={sub}>{sub}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-500 uppercase">
-            {viewMode === "harian" ? "Lingkup Materi" : "Keterangan"}
-          </label>
-          {viewMode === "harian" ? (
-            <Select value={scopeName} onValueChange={setScopeName}>
-              <SelectTrigger className="bg-white border-slate-200">
-                <SelectValue placeholder="Pilih Lingkup" />
+      {/* Control & Filter Section */}
+      <Card className="border-slate-100 shadow-xl shadow-slate-200/40 rounded-[32px] overflow-hidden bg-white">
+        <div className="p-8 grid grid-cols-1 md:grid-cols-12 gap-8 items-end">
+          <div className="md:col-span-3 space-y-3">
+            <div className="flex items-center gap-2 ml-1">
+              <div className="w-1 h-1 rounded-full bg-blue-500"></div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Rombongan Belajar</label>
+            </div>
+            <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+              <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500 transition-all">
+                <SelectValue placeholder="Pilih Kelas" />
               </SelectTrigger>
-              <SelectContent>
-                {[1, 2, 3, 4, 5].map(num => (
-                  <SelectItem key={num} value={String(num)}>Lingkup Materi {num}</SelectItem>
+              <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
+                {classList.map(cls => (
+                  <SelectItem key={cls.id} value={cls.id} className="font-bold py-3 px-4">{cls.name} <span className="text-[10px] text-slate-400 ml-2 font-medium">{cls.academic_year}</span></SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          ) : (
-            <div className="h-10 flex items-center px-3 bg-slate-50 border border-slate-200 rounded-md text-slate-400 text-sm font-medium italic">
-              Otomatis menghitung rata-rata dari semua Bab
+          </div>
+
+          <div className="md:col-span-3 space-y-3">
+             <div className="flex items-center gap-2 ml-1">
+              <div className="w-1 h-1 rounded-full bg-blue-500"></div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mata Pelajaran</label>
             </div>
-          )}
+            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500 transition-all">
+                <SelectValue placeholder="Pilih Mapel" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
+                {subjects.map(sub => (
+                  <SelectItem key={sub} value={sub} className="font-bold py-3 px-4">{sub}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="md:col-span-3 space-y-3">
+            <div className="flex items-center gap-2 ml-1">
+              <div className="w-1 h-1 rounded-full bg-blue-500"></div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                {viewMode === "harian" ? "Lingkup Materi" : "Config Rapor"}
+              </label>
+            </div>
+            {viewMode === "harian" ? (
+              <Select value={scopeName} onValueChange={setScopeName}>
+                <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500 transition-all">
+                  <SelectValue placeholder="Pilih Bab" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
+                  {[1, 2, 3, 4, 5].map(num => (
+                    <SelectItem key={num} value={String(num)} className="font-bold py-3 px-4">Lingkup Materi {num}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="h-12 flex items-center px-4 bg-slate-50 border border-slate-100 rounded-xl text-slate-400 text-[10px] font-black uppercase tracking-wider italic">
+                AUTO-REKAP DARI SEMUA BAB
+              </div>
+            )}
+          </div>
+
+          <div className="md:col-span-3 flex items-center gap-3">
+             <Button 
+               variant="outline"
+               onClick={exportToExcel}
+               className="h-12 flex-1 border-slate-100 hover:border-slate-900 hover:bg-slate-50 rounded-xl font-black text-slate-600 transition-all gap-2 shadow-sm text-[10px] uppercase tracking-widest"
+             >
+                <Download size={16} /> Export
+             </Button>
+             <Button 
+               onClick={saveAllGrades} 
+               disabled={saving || loading || !selectedSubject || (viewMode === "harian" && !scopeName)}
+               className="h-12 flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl transition-all shadow-lg shadow-blue-100 gap-2 text-[10px] uppercase tracking-widest group"
+             >
+               {saving ? "..." : <><Save size={16} className="group-hover:scale-110 transition-transform" /> Simpan</>}
+             </Button>
+          </div>
         </div>
-      </div>
+      </Card>
 
       {!selectedSubject || (viewMode === "harian" && !scopeName) ? (
-        <Card className="border-dashed border-2 bg-slate-50/50">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-slate-400">
-            <AlertCircle size={48} className="mb-4 opacity-20" />
-            <p className="text-sm font-medium">
-              Silakan pilih Mata Pelajaran {viewMode === "harian" && "dan isi Lingkup Materi"} terlebih dahulu.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="py-24 bg-white border-2 border-dashed border-slate-100 rounded-[48px] flex flex-col items-center justify-center text-center p-12">
+          <div className="w-24 h-24 rounded-[32px] bg-slate-50 flex items-center justify-center text-slate-200 mb-6">
+            <AlertCircle size={48} />
+          </div>
+          <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Konfigurasi Dibutuhkan</h3>
+          <p className="text-slate-500 font-medium max-w-xs mt-2">
+            Silakan lengkapi filter kelas dan mata pelajaran di atas untuk memulai penginputan nilai akademik.
+          </p>
+        </div>
       ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-            <Card className="bg-white border-slate-200 shadow-sm border-b-2 md:border-b-4 border-b-blue-600">
-              <CardContent className="p-3 md:p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rerata</p>
-                  <p className="text-lg md:text-2xl font-black text-slate-800">
+        <div className="space-y-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <Card className="border border-slate-100 rounded-[32px] shadow-sm hover:shadow-xl transition-all duration-500 group bg-white p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-3xl -mr-12 -mt-12 group-hover:opacity-100 transition-opacity opacity-0"></div>
+                <div className="flex flex-col relative z-10">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Rerata Kolektif</span>
+                  <p className="text-4xl font-black text-slate-900 tracking-tighter">
                     {students.length > 0 ? (
                       Math.round(students.reduce((acc, s) => {
                         const val = viewMode === "harian" ? (grades[s.id]?.average_score || 0) : (semesterGrades[s.id]?.final_score || 0);
@@ -725,69 +773,66 @@ export default function NilaiSiswa() {
                       }, 0) / students.length)
                     ) : 0}
                   </p>
-                </div>
-                <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg text-blue-600">
-                  <Calculator size={14} />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white border-slate-200 shadow-sm border-b-2 md:border-b-4 border-b-emerald-600">
-              <CardContent className="p-3 md:p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tinggi</p>
-                  <p className="text-lg md:text-2xl font-black text-emerald-600">
-                    {students.length > 0 ? Math.max(...students.map(s => viewMode === "harian" ? (grades[s.id]?.average_score || 0) : (semesterGrades[s.id]?.final_score || 0))) : 0}
-                  </p>
-                </div>
-                <div className="bg-emerald-50 p-1.5 md:p-2 rounded-lg text-emerald-600">
-                  <ChevronRight size={14} className="-rotate-90" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white border-slate-200 shadow-sm border-b-2 md:border-b-4 border-b-amber-600">
-              <CardContent className="p-3 md:p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rendah</p>
-                  <p className="text-lg md:text-2xl font-black text-amber-600">
-                    {students.length > 0 ? Math.min(...students.map(s => viewMode === "harian" ? (grades[s.id]?.average_score || 0) : (semesterGrades[s.id]?.final_score || 0))) : 0}
-                  </p>
-                </div>
-                <div className="bg-amber-50 p-1.5 md:p-2 rounded-lg text-amber-600">
-                  <ChevronRight size={14} className="rotate-90" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white border-slate-200 shadow-sm border-b-2 md:border-b-4 border-b-indigo-600">
-              <CardContent className="p-3 md:p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">Aktif</p>
-                  <div className="flex items-baseline gap-1">
-                    <p className="text-lg md:text-2xl font-black text-indigo-600">
-                      {students.length > 0 ? Math.round((students.filter(s => (viewMode === "harian" ? (grades[s.id]?.average_score || 0) : (semesterGrades[s.id]?.final_score || 0)) > 0).length / students.length) * 100) : 0}%
-                    </p>
+                  <div className="flex items-center gap-1 mt-3">
+                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+                     <span className="text-[9px] font-bold text-blue-600 uppercase tracking-widest">Normal Range</span>
                   </div>
                 </div>
-                <div className="bg-indigo-50 p-1.5 md:p-2 rounded-lg text-indigo-600">
-                  <GraduationCap size={14} />
+            </Card>
+
+            <Card className="border border-slate-100 rounded-[32px] shadow-sm hover:shadow-xl transition-all duration-500 group bg-white p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-full blur-3xl -mr-12 -mt-12 group-hover:opacity-100 transition-opacity opacity-0"></div>
+                <div className="flex flex-col relative z-10">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Skor Tertinggi</span>
+                  <p className="text-4xl font-black text-emerald-600 tracking-tighter">
+                    {students.length > 0 ? Math.max(...students.map(s => viewMode === "harian" ? (grades[s.id]?.average_score || 0) : (semesterGrades[s.id]?.final_score || 0))) : 0}
+                  </p>
+                  <div className="flex items-center gap-1 mt-3">
+                     <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">Target Tercapai</span>
+                  </div>
                 </div>
-              </CardContent>
+            </Card>
+
+            <Card className="border border-slate-100 rounded-[32px] shadow-sm hover:shadow-xl transition-all duration-500 group bg-white p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-full blur-3xl -mr-12 -mt-12 group-hover:opacity-100 transition-opacity opacity-0"></div>
+                <div className="flex flex-col relative z-10">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Skor Terendah</span>
+                  <p className="text-4xl font-black text-red-600 tracking-tighter">
+                    {students.length > 0 ? Math.min(...students.map(s => viewMode === "harian" ? (grades[s.id]?.average_score || 0) : (semesterGrades[s.id]?.final_score || 0))) : 0}
+                  </p>
+                  <div className="flex items-center gap-1 mt-3">
+                     <span className="text-[9px] font-bold text-red-600 uppercase tracking-widest">Intervensi Dibutuhkan</span>
+                  </div>
+                </div>
+            </Card>
+
+            <Card className="border border-slate-100 rounded-[32px] shadow-sm hover:shadow-xl transition-all duration-500 group bg-white p-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-full blur-3xl -mr-12 -mt-12 group-hover:opacity-100 transition-opacity opacity-0"></div>
+                <div className="flex flex-col relative z-10">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Progress Kelas</span>
+                  <p className="text-4xl font-black text-indigo-600 tracking-tighter">
+                    {students.length > 0 ? Math.round((students.filter(s => (viewMode === "harian" ? (grades[s.id]?.average_score || 0) : (semesterGrades[s.id]?.final_score || 0)) > 0).length / students.length) * 100) : 0}%
+                  </p>
+                  <div className="flex items-center gap-1 mt-3">
+                     <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest">Entry Completed</span>
+                  </div>
+                </div>
             </Card>
           </div>
 
-          <Card className="border-slate-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto rounded-xl">
-              <Table className="min-w-[800px] md:min-w-full">
+          <div className="bg-white border border-slate-100 rounded-[40px] shadow-2xl shadow-slate-200/50 overflow-hidden relative">
+            <div className="overflow-x-auto">
+              <Table className="min-w-full border-collapse">
                 {viewMode === "harian" ? (
                   <>
-                    <TableHeader className="bg-slate-50/80 sticky top-0 z-10 shadow-sm">
-                      <TableRow className="border-b border-slate-200">
-                        <TableHead className="w-[40px] md:w-[50px] font-bold text-slate-600 text-center">No</TableHead>
-                        <TableHead className="min-w-[150px] md:min-w-[200px] font-bold text-slate-600">Nama Murid</TableHead>
-                        <TableHead className="w-[70px] md:w-[90px] text-center font-bold text-slate-600">TP 1</TableHead>
-                        <TableHead className="w-[70px] md:w-[90px] text-center font-bold text-slate-600">TP 2</TableHead>
-                        <TableHead className="w-[70px] md:w-[90px] text-center font-bold text-slate-600">TP 3</TableHead>
-                        <TableHead className="w-[70px] md:w-[90px] text-center font-bold text-slate-600">TP 4</TableHead>
-                        <TableHead className="w-[100px] md:w-[120px] text-center font-bold bg-blue-50/50 text-blue-700 uppercase p-1 md:p-4">RERATA</TableHead>
+                    <TableHeader className="bg-slate-900 border-b-2 border-slate-950">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-[80px] h-16 font-black text-[10px] text-white uppercase tracking-[0.2em] text-center border-r border-white/5">No</TableHead>
+                        <TableHead className="min-w-[250px] h-16 font-black text-[10px] text-white uppercase tracking-[0.2em] pl-10 border-r border-white/5">Profil Murid</TableHead>
+                        {[1, 2, 3, 4].map(tp => (
+                          <TableHead key={tp} className="w-[100px] h-16 text-center font-black text-[10px] text-white uppercase tracking-[0.2em] border-r border-white/5">TP {tp}</TableHead>
+                        ))}
+                        <TableHead className="w-[140px] h-16 text-center font-black text-[10px] text-white bg-blue-600 uppercase tracking-[0.2em]">RATA KELAS</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -795,41 +840,40 @@ export default function NilaiSiswa() {
                         const sGrade = grades[student.id] || {};
                         const avg = sGrade.average_score || 0;
                         return (
-                          <TableRow key={student.id} className="hover:bg-slate-50/80 transition-colors border-slate-100 group">
-                            <TableCell className="text-center font-bold text-slate-300 group-hover:text-blue-400 transition-colors">{index + 1}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-[10px] shrink-0 border border-blue-100">
-                                  {student.full_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()}
+                          <TableRow key={student.id} className="group hover:bg-blue-50/40 transition-colors border-b border-slate-100 last:border-0 h-24">
+                            <TableCell className="text-center font-black text-slate-300 group-hover:text-blue-500 transition-colors border-r border-slate-50">{index + 1}</TableCell>
+                            <TableCell className="pl-10 border-r border-slate-50">
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-white group-hover:text-blue-600 group-hover:border-blue-100 transition-all duration-300 shadow-sm">
+                                  <span className="font-black text-xs">{(student.full_name || '??').charAt(0).toUpperCase()}</span>
                                 </div>
-                                <div className="flex flex-col min-w-0">
-                                  <span className="font-bold text-slate-800 truncate">{student.full_name}</span>
-                                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-tighter">NISN: {student.nisn || "-"}</span>
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">NISN: {student.nisn || "-"}</span>
+                                  <span className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight leading-none">{student.full_name}</span>
                                 </div>
                               </div>
                             </TableCell>
                             {[1, 2, 3, 4].map(tp => (
-                              <TableCell key={tp} className="p-2">
-                                <div className="relative group/input">
+                              <TableCell key={tp} className="p-4 border-r border-slate-50">
+                                <div className="relative group/input flex justify-center">
                                   <Input 
                                     type="number"
                                     min="0"
                                     max="100"
                                     value={sGrade[`tp${tp}`] || ""}
                                     onChange={(e) => handleGradeChange(student.id, `tp${tp}`, e.target.value)}
-                                    className="text-center h-8 md:h-10 bg-white border-slate-200 focus:border-blue-400 focus:ring-blue-100 font-medium transition-all shadow-none px-1 text-sm"
+                                    className="w-16 h-12 text-center bg-slate-50 border-slate-100 rounded-xl font-black focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all shadow-none px-1 text-sm border-2"
                                     placeholder="0"
                                   />
-                                  <div className="absolute bottom-0 left-0 h-0.5 w-0 bg-blue-500 transition-all group-focus-within/input:w-full"></div>
                                 </div>
                               </TableCell>
                             ))}
-                            <TableCell className="text-center bg-blue-50/20 border-l border-blue-100">
-                              <div className="flex flex-col items-center gap-1">
-                                <span className={`text-lg font-black tracking-tight ${getGradeColor(avg)}`}>
+                            <TableCell className="text-center bg-blue-50/50">
+                              <div className="flex flex-col items-center gap-2">
+                                <span className={`text-2xl font-black tracking-tighter transition-all ${getGradeColor(avg)} group-hover:scale-110`}>
                                   {avg}
                                 </span>
-                                <div className="w-16 h-1 bg-slate-200 rounded-full overflow-hidden">
+                                <div className="w-12 h-1.5 bg-white rounded-full overflow-hidden border border-blue-100">
                                   <div 
                                     className={`h-full transition-all duration-500 ${avg >= 75 ? 'bg-emerald-500' : avg >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
                                     style={{ width: `${avg}%` }}
@@ -844,14 +888,14 @@ export default function NilaiSiswa() {
                   </>
                 ) : (
                   <>
-                    <TableHeader className="bg-slate-50/80 sticky top-0 z-10 shadow-sm">
-                      <TableRow className="border-b border-slate-200">
-                        <TableHead className="w-[40px] md:w-[50px] font-bold text-slate-600 text-center">No</TableHead>
-                        <TableHead className="min-w-[150px] md:min-w-[200px] font-bold text-slate-600">Nama Murid</TableHead>
-                        <TableHead className="w-[100px] md:w-[120px] text-center font-bold text-slate-600">Avg Bab</TableHead>
-                        <TableHead className="w-[80px] md:w-[110px] text-center font-bold text-amber-700 bg-amber-50/50">UTS</TableHead>
-                        <TableHead className="w-[80px] md:w-[110px] text-center font-bold text-amber-700 bg-amber-50/50">UAS</TableHead>
-                        <TableHead className="w-[110px] md:w-[140px] text-center font-bold text-emerald-700 bg-emerald-50/50">RAPOR</TableHead>
+                    <TableHeader className="bg-slate-900 border-b-2 border-slate-950">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-[80px] h-16 font-black text-[10px] text-white uppercase tracking-[0.2em] text-center border-r border-white/5">No</TableHead>
+                        <TableHead className="min-w-[250px] h-16 font-black text-[10px] text-white uppercase tracking-[0.2em] pl-10 border-r border-white/5">Profil Murid</TableHead>
+                        <TableHead className="w-[120px] h-16 text-center font-black text-[10px] text-white uppercase tracking-[0.2em] border-r border-white/5">RATA HARIAN</TableHead>
+                        <TableHead className="w-[110px] h-16 text-center font-black text-[10px] text-amber-400 bg-white/5 uppercase tracking-[0.2em] border-r border-white/5">UTS</TableHead>
+                        <TableHead className="w-[110px] h-16 text-center font-black text-[10px] text-amber-400 bg-white/5 uppercase tracking-[0.2em] border-r border-white/5">UAS</TableHead>
+                        <TableHead className="w-[160px] h-16 text-center font-black text-[10px] text-white bg-emerald-600 uppercase tracking-[0.2em]">NILAI RAPOR</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -859,53 +903,58 @@ export default function NilaiSiswa() {
                         const semGrade = semesterGrades[student.id] || {};
                         const final = semGrade.final_score || 0;
                         return (
-                          <TableRow key={student.id} className="hover:bg-slate-50/80 transition-colors border-slate-100 group">
-                            <TableCell className="text-center font-medium text-slate-300">{index + 1}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-[10px] shrink-0 border border-indigo-100">
-                                  {student.full_name.substring(0, 1).toUpperCase()}
+                          <TableRow key={student.id} className="group hover:bg-slate-50/80 transition-colors border-b border-slate-100 last:border-0 h-24">
+                            <TableCell className="text-center font-black text-slate-300 border-r border-slate-50">{index + 1}</TableCell>
+                            <TableCell className="pl-10 border-r border-slate-50">
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-black shadow-sm uppercase">
+                                  {student.full_name?.substring(0, 1) || '?'}
                                 </div>
                                 <div className="flex flex-col">
-                                  <span className="font-bold text-slate-800">{student.full_name}</span>
-                                  <span className="text-[10px] text-slate-400 font-mono">ID: {student.nisn || "-"}</span>
+                                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">ID: {student.nisn || "-"}</span>
+                                  <span className="text-sm font-black text-slate-900 uppercase tracking-tight leading-none">{student.full_name}</span>
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell className="text-center bg-slate-50/30">
-                              <Badge variant="secondary" className="bg-white border-slate-200 text-slate-700 font-bold">
-                                {semGrade.average_formative || 0}
-                              </Badge>
+                            <TableCell className="text-center bg-slate-50/40 border-r border-slate-50">
+                               <div className="flex flex-col items-center">
+                                  <span className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Recap Bab</span>
+                                  <span className="text-lg font-black text-slate-800">{semGrade.average_formative || 0}</span>
+                               </div>
                             </TableCell>
-                            <TableCell className="p-2 bg-amber-50/10 border-l border-amber-100">
-                              <Input 
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={semGrade.uts || ""}
-                                onChange={(e) => handleSemesterGradeChange(student.id, "uts", e.target.value)}
-                                className="text-center h-8 md:h-10 font-bold border-amber-100 focus:border-amber-400 focus:ring-amber-100 bg-white shadow-sm px-1 text-sm"
-                                placeholder="0"
-                              />
+                            <TableCell className="p-4 bg-amber-50/10 border-r border-slate-50">
+                               <div className="flex justify-center">
+                                  <Input 
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={semGrade.uts || ""}
+                                    onChange={(e) => handleSemesterGradeChange(student.id, "uts", e.target.value)}
+                                    className="w-16 h-12 text-center font-black border-amber-100/50 shadow-none border-2 focus:ring-2 focus:ring-amber-500 rounded-xl bg-white"
+                                    placeholder="0"
+                                  />
+                               </div>
                             </TableCell>
-                            <TableCell className="p-2 bg-amber-50/10">
-                              <Input 
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={semGrade.uas || ""}
-                                onChange={(e) => handleSemesterGradeChange(student.id, "uas", e.target.value)}
-                                className="text-center h-8 md:h-10 font-bold border-amber-100 focus:border-amber-400 focus:ring-amber-100 bg-white shadow-sm px-1 text-sm"
-                                placeholder="0"
-                              />
+                            <TableCell className="p-4 bg-amber-50/10 border-r border-slate-50">
+                              <div className="flex justify-center">
+                                  <Input 
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={semGrade.uas || ""}
+                                    onChange={(e) => handleSemesterGradeChange(student.id, "uas", e.target.value)}
+                                    className="w-16 h-12 text-center font-black border-amber-100/50 shadow-none border-2 focus:ring-2 focus:ring-amber-500 rounded-xl bg-white"
+                                    placeholder="0"
+                                  />
+                               </div>
                             </TableCell>
-                            <TableCell className="text-center bg-emerald-50/20 border-l border-emerald-100">
-                              <div className="flex flex-col items-center justify-center">
-                                <span className={`text-2xl font-black tracking-tighter ${getGradeColor(final)}`}>
+                            <TableCell className="text-center bg-emerald-50/40">
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <span className={`text-3xl font-black tracking-tighter ${getGradeColor(final)}`}>
                                   {final}
                                 </span>
-                                <Badge className={`${final >= 75 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'} border-none text-[8px] font-bold py-1 h-auto`}>
-                                  {final >= 75 ? "LULUS" : "REMIDI"}
+                                <Badge className={`${final >= 75 ? 'bg-emerald-600' : 'bg-red-600'} border-none text-[8px] font-black px-3 py-1 rounded-full text-white uppercase tracking-widest`}>
+                                  {final >= 75 ? "KOMPETEN" : "REMIDIAL"}
                                 </Badge>
                               </div>
                             </TableCell>
@@ -915,79 +964,86 @@ export default function NilaiSiswa() {
                     </TableBody>
                   </>
                 )}
-                {students.length === 0 && !loading && (
-                  <TableRow>
-                    <TableCell colSpan={9} className="h-40 text-center text-slate-400 italic font-medium bg-slate-50">
-                      Tidak ada data murid yang ditemukan untuk kelas ini
-                    </TableCell>
-                  </TableRow>
-                )}
               </Table>
             </div>
-          </Card>
+          </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="bg-slate-900 text-white border-none shadow-xl overflow-hidden relative">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-          <CardHeader>
-            <CardTitle className="text-xl flex items-center gap-2">
-              <Calculator size={20} className="text-blue-400" /> Analisis Nilai {viewMode === "harian" ? "Bab" : "Rapor"}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <Card className="bg-slate-900 border-none shadow-2xl rounded-[40px] overflow-hidden relative group">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-blue-600/20 rounded-full blur-[100px] -mr-40 -mt-40 transition-opacity opacity-50 group-hover:opacity-100 duration-700"></div>
+          <CardHeader className="relative z-10 p-10 pb-4">
+            <CardTitle className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+              <Calculator size={24} className="text-blue-400" /> Insight Penilaian
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-end border-b border-white/10 pb-4">
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Status Pengisian</p>
-                  <p className="text-white font-medium">{viewMode === "harian" ? "Input Formatif" : "Siap Rapor"}</p>
+          <CardContent className="relative z-10 p-10 pt-0">
+            <div className="space-y-6">
+              <div className="flex justify-between items-end border-b border-white/10 pb-6">
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-black">Status Dashboard</p>
+                  <p className="text-white font-bold uppercase tracking-tight">{viewMode === "harian" ? "Evaluasi Formatif" : "Evaluasi Rapor Akhir"}</p>
                 </div>
-                <Badge className={`${viewMode === "harian" ? "bg-blue-500" : "bg-emerald-500"} hover:opacity-80 font-bold border-none`}>
-                  {viewMode === "harian" ? "MODE BAB" : "MODE RAPOR"}
+                <Badge className={`${viewMode === "harian" ? "bg-blue-600" : "bg-emerald-600"} hover:opacity-80 font-black border-none px-4 py-1 rounded-lg uppercase text-[9px] tracking-widest`}>
+                  {viewMode === "harian" ? "BAB MODE" : "RAPOR MODE"}
                 </Badge>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed font-medium">
+              <p className="text-sm text-slate-400 leading-relaxed font-medium">
                 {viewMode === "harian" 
-                  ? "Input TP 1-4 untuk menghitung nilai rata-rata per lingkup materi (Formatif/Sumatif Bab)."
-                  : "Finalisasi nilai rapor dengan menggabungkan rata-rata harian, UTS, dan UAS menggunakan bobot Kurikulum Merdeka."}
+                  ? "Input indikator capaian TP 1-4 untuk kalkulasi otomatis nilai harian. Sistem akan memvalidasi rentang nilai 0-100 secara otomatis."
+                  : "Finalisasi rekapitulasi nilai rapor dengan mengintegrasikan rata-rata seluruh bab, hasil UTS, dan UAS tahun akademik berjalan."}
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm border-l-4 border-l-blue-600">
-           <CardHeader className="pb-2">
+        <Card className="border-slate-100 shadow-xl rounded-[40px] border-l-8 border-l-blue-600 bg-white relative group overflow-hidden">
+           <CardHeader className="p-10 pb-4">
               <div className="flex justify-between items-start">
-                <CardTitle className="text-sm font-bold text-slate-600 group flex items-center gap-1">
-                  PANDUAN INPUT <ChevronRight size={14} className="text-slate-400" />
+                <CardTitle className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></div> Panduan Operasional
                 </CardTitle>
-                <FileSpreadsheet size={16} className="text-slate-200" />
+                <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-300">
+                  <FileSpreadsheet size={20} />
+                </div>
               </div>
            </CardHeader>
-           <CardContent className="space-y-3">
+           <CardContent className="p-10 pt-0 space-y-6">
               {viewMode === "harian" ? (
-                <>
-                  <div className="flex gap-3 items-start">
-                    <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</div>
-                    <p className="text-xs text-slate-600">Isi TP 1 sampai TP 4 sesuai capaian pembelajaran per bab.</p>
+                <div className="space-y-5">
+                  <div className="flex gap-4 items-start group/step">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-black shrink-0 border border-blue-100 group-hover/step:bg-blue-600 group-hover/step:text-white transition-all duration-300">1</div>
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight">Input Indikator</h4>
+                      <p className="text-xs text-slate-500 font-medium leading-relaxed">Masukkan skor TP 1 s/d TP 4 sesuai data penilaian otentik di kelas.</p>
+                    </div>
                   </div>
-                  <div className="flex gap-3 items-start">
-                    <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</div>
-                    <p className="text-xs text-slate-600">Tekan "Simpan" untuk menyimpan nilai formatif bab ini.</p>
+                  <div className="flex gap-4 items-start group/step">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-black shrink-0 border border-blue-100 group-hover/step:bg-blue-600 group-hover/step:text-white transition-all duration-300">2</div>
+                    <div className="space-y-1">
+                       <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight">Sinkronisasi Data</h4>
+                       <p className="text-xs text-slate-500 font-medium leading-relaxed">Gunakan tombol "Simpan" setelah pengisian selesai untuk mengupdate database pusat.</p>
+                    </div>
                   </div>
-                </>
+                </div>
               ) : (
-                <>
-                  <div className="flex gap-3 items-start">
-                    <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">1</div>
-                    <p className="text-xs text-slate-600 font-medium text-slate-800">Sistem otomatis mengambil rata-rata dari semua Bab yang sudah diinput.</p>
+                <div className="space-y-5">
+                   <div className="flex gap-4 items-start group/step">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-black shrink-0 border border-indigo-100 group-hover/step:bg-indigo-600 group-hover/step:text-white transition-all duration-300">1</div>
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight">Auto-Calculation</h4>
+                      <p className="text-xs text-slate-500 font-medium leading-relaxed italic">Sistem secara cerdas merangkum seluruh bab kompetensi dasar siswa.</p>
+                    </div>
                   </div>
-                  <div className="flex gap-3 items-start">
-                    <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">2</div>
-                    <p className="text-xs text-slate-600">Input nilai UTS dan UAS untuk mendapatkan Nilai Akhir Rapor.</p>
+                  <div className="flex gap-4 items-start group/step">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm font-black shrink-0 border border-indigo-100 group-hover/step:bg-indigo-600 group-hover/step:text-white transition-all duration-300">2</div>
+                    <div className="space-y-1">
+                       <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight">Semester Finalize</h4>
+                       <p className="text-xs text-slate-500 font-medium leading-relaxed">Input nilai UTS & UAS. Nilai akhir dihitung: (Rerata Bab + UTS + UAS) / 3.</p>
+                    </div>
                   </div>
-                </>
+                </div>
               )}
            </CardContent>
         </Card>

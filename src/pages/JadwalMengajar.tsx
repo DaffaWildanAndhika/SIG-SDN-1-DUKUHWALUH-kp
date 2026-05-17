@@ -9,7 +9,11 @@ import {
   Trash2,
   CalendarDays,
   Search,
-  School
+  School,
+  ArrowRight,
+  UserCircle,
+  Layout,
+  ChevronRight
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +23,7 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle,
+  DialogDescription,
   DialogFooter 
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -32,11 +37,14 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "motion/react";
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
 export default function JadwalMengajar() {
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string>("");
   const [schedules, setSchedules] = useState<any[]>([]);
   const [weeklyMaterials, setWeeklyMaterials] = useState<any[]>([]);
   const [guruList, setGuruList] = useState<any[]>([]);
@@ -115,6 +123,7 @@ export default function JadwalMengajar() {
   const checkUserRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
+      setCurrentUser(user);
       // Check database profile for most accurate role
       const { data: profile } = await supabase
         .from('profiles')
@@ -122,8 +131,10 @@ export default function JadwalMengajar() {
         .eq('id', user.id)
         .single();
       
-      const role = profile?.role || user.user_metadata?.role;
+      const role = profile?.role || user.user_metadata?.role || "guru";
+      setUserRole(role);
       const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
+      // Allow manage if admin, special admin, or guru
       setCanManage(role === "admin" || role === "guru" || isSpecialAdmin);
     }
   };
@@ -164,11 +175,12 @@ export default function JadwalMengajar() {
     try {
       // 1. Fetch Fixed Schedules for the year
       // We use !inner hint to allow filtering on the joined table
-      const { data: scheds, error: schedError } = await supabase
+      let query = supabase
         .from('teaching_schedules')
         .select('*, guru:profiles(full_name), class:classes!inner(name, academic_year)')
-        .eq('classes.academic_year', selectedYear)
-        .order('start_time', { ascending: true });
+        .eq('classes.academic_year', selectedYear);
+
+      const { data: scheds, error: schedError } = await query.order('start_time', { ascending: true });
       
       if (schedError) throw schedError;
       setSchedules(scheds || []);
@@ -255,6 +267,50 @@ export default function JadwalMengajar() {
     }
   };
 
+  const handleBulkFill = async () => {
+    if (schedules.length === 0) {
+      toast.error("Tidak ada jadwal yang tersedia untuk diproses");
+      return;
+    }
+
+    if (!confirm("Otomatis lengkapi data jadwal untuk seluruh 20 minggu berdasarkan mata pelajaran saat ini?")) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payloads: any[] = [];
+      schedules.forEach(sched => {
+        for (let i = 1; i <= 20; i++) {
+          payloads.push({
+            schedule_id: sched.id,
+            week_number: i,
+            chapter: "Jadwal Terdaftar",
+            sub_chapter: sched.subject,
+            notes: "Diisi secara otomatis"
+          });
+        }
+      });
+
+      // Split into batches to avoid large payload errors
+      const batchSize = 100;
+      for (let i = 0; i < payloads.length; i += batchSize) {
+        const batch = payloads.slice(i, i + batchSize);
+        const { error } = await supabase
+          .from('lesson_materials')
+          .upsert(batch, { onConflict: 'schedule_id,week_number' });
+        if (error) throw error;
+      }
+
+      toast.success("Jadwal 20 minggu berhasil diisi secara otomatis!");
+      fetchSchedules();
+    } catch (error: any) {
+      toast.error("Gagal mengisi otomatis: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (confirm("Hapus jadwal mengajar ini?")) {
       try {
@@ -299,266 +355,389 @@ export default function JadwalMengajar() {
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-10">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div className="space-y-8 pb-12">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Jadwal Mengajar</h1>
-          <p className="text-xs md:text-sm text-slate-500 font-medium">Jadwal mingguan & progres materi materi SDN 1 Dukuhwaluh</p>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-8 h-[2px] bg-blue-600 rounded-full"></span>
+            <span className="text-blue-600 font-black text-[10px] uppercase tracking-[0.2em]">Akademik</span>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Jadwal Mengajar</h1>
+          <p className="text-slate-500 font-medium mt-1">
+            Monitoring kegiatan belajar mengajar <span className="text-slate-900 font-bold">SDN 1 Dukuhwaluh</span>.
+          </p>
         </div>
-        <div className="grid grid-cols-2 lg:flex lg:items-center gap-2">
-          <Select value={selectedWeek} onValueChange={setSelectedWeek}>
-            <SelectTrigger className="h-9 md:h-10 border-slate-200 bg-white shadow-sm hover:border-blue-400 transition-colors text-blue-600 font-bold text-xs md:text-sm">
+        
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
+            <Select value={selectedWeek} onValueChange={setSelectedWeek}>
+              <SelectTrigger className="h-10 w-[140px] border-none bg-transparent font-black text-blue-600 text-xs uppercase tracking-wider focus:ring-0">
+                <div className="flex items-center gap-2">
+                  <CalendarDays size={14} className="shrink-0" />
+                  <SelectValue placeholder="Minggu" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-slate-100 shadow-xl">
+                {Array.from({ length: 20 }, (_, i) => (
+                  <SelectItem key={i + 1} value={String(i + 1)} className="font-bold py-2.5">Minggu {i + 1}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <div className="w-[1px] h-6 bg-slate-100"></div>
+
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger className="h-10 w-[120px] border-none bg-transparent font-bold text-slate-600 text-xs focus:ring-0">
+                <div className="flex items-center gap-2">
+                  <Calendar size={14} className="text-slate-400 shrink-0" />
+                  <SelectValue placeholder="TA" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-slate-100">
+                {academicYears.length > 0 ? (
+                  academicYears.map(year => (
+                    <SelectItem key={year} value={year} className="font-bold">{year}</SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="none" disabled>Belum ada data</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Select value={selectedClassFilter} onValueChange={setSelectedClassFilter}>
+            <SelectTrigger className="h-12 w-full md:w-[180px] bg-white border-slate-100 rounded-xl font-bold text-slate-600 px-4 shadow-sm">
               <div className="flex items-center gap-2">
-                <CalendarDays size={14} className="shrink-0" />
-                <SelectValue placeholder="Minggu" />
+                <School size={16} className="text-slate-300" />
+                <SelectValue placeholder="Semua Kelas" />
               </div>
             </SelectTrigger>
-            <SelectContent className="z-50">
-              {Array.from({ length: 20 }, (_, i) => (
-                <SelectItem key={i + 1} value={String(i + 1)}>Minggu {i + 1}</SelectItem>
+            <SelectContent className="rounded-xl border-slate-100">
+              <SelectItem value="all" className="font-bold">Semua Kelas</SelectItem>
+              {activeClasses.map(cls => (
+                <SelectItem key={cls.id} value={cls.id} className="font-bold">{cls.name}</SelectItem>
               ))}
-            </SelectContent>
-          </Select>
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="h-9 md:h-10 border-slate-200 bg-white shadow-sm text-xs md:text-sm">
-              <div className="flex items-center gap-2">
-                <Calendar size={14} className="text-slate-400 shrink-0" />
-                <SelectValue placeholder="TA" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              {academicYears.length > 0 ? (
-                academicYears.map(year => (
-                  <SelectItem key={year} value={year}>{year}</SelectItem>
-                ))
-              ) : (
-                <SelectItem value="none" disabled>Belum ada data</SelectItem>
-              )}
             </SelectContent>
           </Select>
 
-          <Select value={selectedClassFilter} onValueChange={setSelectedClassFilter}>
-            <SelectTrigger className="h-9 md:h-10 border-slate-200 bg-white shadow-sm text-xs md:text-sm">
-              <div className="flex items-center gap-2 font-medium text-slate-700">
-                <School size={14} className="text-slate-400 shrink-0" />
-                <SelectValue placeholder="Kelas" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Kelas</SelectItem>
-              {activeClasses.map(cls => (
-                <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           {canManage && (
-            <Button onClick={() => { setSelectedSchedule(null); setIsDialogOpen(true); }} className="col-span-2 lg:col-auto gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 h-9 md:h-10 text-xs md:text-sm">
-              <Plus size={16} /> <span className="hidden lg:inline">Buat Jadwal</span><span className="lg:hidden">Jadwal</span>
-            </Button>
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <Button 
+                variant="outline"
+                onClick={handleBulkFill}
+                disabled={loading || schedules.length === 0}
+                className="h-12 px-5 border-blue-200 text-blue-600 hover:bg-blue-50 font-bold rounded-xl transition-all flex items-center gap-2 shadow-sm"
+              >
+                <CalendarDays size={18} />
+                <span className="hidden sm:inline">Isi 20 Minggu</span>
+                <span className="sm:hidden">20 Mgg</span>
+              </Button>
+
+              <Button 
+                onClick={() => { setSelectedSchedule(null); setIsDialogOpen(true); }} 
+                className="h-12 px-6 bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-200 rounded-xl transition-all flex items-center gap-2 group flex-1 md:flex-none"
+              >
+                <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> 
+                <span>Tambah Jadwal</span>
+              </Button>
+            </div>
           )}
         </div>
       </div>
 
       {/* Day Selector */}
-      <div className="flex overflow-x-auto pb-2 gap-2 scrollbar-hide">
+      <div className="bg-white p-2 border border-slate-100 rounded-2xl shadow-sm flex overflow-x-auto gap-1 custom-scrollbar">
         {DAYS.map(day => (
           <button
             key={day}
             onClick={() => setActiveDay(day)}
-            className={`px-6 py-2.5 rounded-xl font-bold transition-all duration-200 whitespace-nowrap ${activeDay === day ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+            className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${
+              activeDay === day 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' 
+                : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+            }`}
           >
             {day}
           </button>
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-        <Table className="min-w-[700px] md:min-w-full">
-          <TableHeader className="bg-slate-50/50">
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="w-[120px] font-bold text-slate-600 uppercase text-[10px] tracking-wider">Waktu</TableHead>
-              <TableHead className="font-bold text-slate-600 uppercase text-[10px] tracking-wider">Pelajaran & Progres Materi</TableHead>
-              <TableHead className="font-bold text-slate-600 uppercase text-[10px] tracking-wider">Guru & Kelas</TableHead>
-              <TableHead className="text-right font-bold text-slate-600 uppercase text-[10px] tracking-wider w-[120px]">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              Array(4).fill(0).map((_, i) => (
-                <TableRow key={i}>
-                  {Array(4).fill(0).map((_, j) => (
-                    <TableCell key={j}><div className="h-4 bg-slate-100 rounded animate-pulse" /></TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : daySchedules.length > 0 ? (
-              daySchedules.map((row) => {
-                const material = getWeekMaterial(row.id);
-                return (
-                  <TableRow key={row.id} className="hover:bg-slate-50/30 group">
-                    <TableCell className="font-mono text-xs font-bold text-slate-500">
-                      <div className="flex flex-col">
-                        <span>{row.start_time?.substring(0, 5)}</span>
-                        <div className="h-px w-4 bg-slate-200 my-1"></div>
-                        <span>{row.end_time?.substring(0, 5)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="">
-                      <p className="font-bold text-slate-800 text-base">{row.subject}</p>
-                      <div className="flex flex-col gap-1 mt-1.5">
-                        {material && material.chapter ? (
-                          <>
-                            <div className="flex items-center gap-1.5">
-                              <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 py-0 h-4">Bab</Badge>
-                              <span className="text-sm font-semibold text-slate-700">{material.chapter}</span>
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table className="border-collapse border-b-2 border-slate-900">
+            <TableHeader className="bg-slate-50">
+              <TableRow className="hover:bg-transparent border-b-2 border-slate-900">
+                <TableHead className="w-[120px] h-14 text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] pl-8 border-r-2 border-slate-900">Waktu</TableHead>
+                <TableHead className="h-14 text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] border-r-2 border-slate-900">Pelajaran & Materi</TableHead>
+                <TableHead className="h-14 text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] border-r-2 border-slate-900">Guru & Kelas</TableHead>
+                <TableHead className="w-[150px] h-14 text-right pr-8 text-[10px] font-black text-slate-900 uppercase tracking-[0.2em]">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <AnimatePresence mode="popLayout">
+                {loading ? (
+                  Array(4).fill(0).map((_, i) => (
+                    <TableRow key={`skeleton-${i}`} className="border-b-2 border-slate-900">
+                      <TableCell className="pl-8 py-6 border-r-2 border-slate-900"><div className="h-10 w-20 bg-slate-50 rounded-xl animate-pulse" /></TableCell>
+                      <TableCell className="border-r-2 border-slate-900"><div className="space-y-2"><div className="h-4 w-48 bg-slate-50 rounded animate-pulse" /><div className="h-3 w-32 bg-slate-50 rounded animate-pulse" /></div></TableCell>
+                      <TableCell className="border-r-2 border-slate-900"><div className="h-4 w-32 bg-slate-50 rounded animate-pulse" /></TableCell>
+                      <TableCell className="pr-8"><div className="h-9 w-9 bg-slate-50 rounded-lg float-right animate-pulse" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : daySchedules.length > 0 ? (
+                  daySchedules.map((row, index) => {
+                    const material = getWeekMaterial(row.id);
+                    return (
+                      <motion.tr
+                        layout
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ delay: index * 0.05 }}
+                        key={row.id} 
+                        className="group hover:bg-blue-50/30 transition-colors border-b-2 border-slate-900 last:border-b-0"
+                      >
+                        <TableCell className="pl-8 py-5 border-r-2 border-slate-900">
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock size={12} className="text-blue-500" />
+                              <span className="text-sm font-black text-slate-900 tracking-tight">{row.start_time?.substring(0, 5)}</span>
                             </div>
-                            {material.sub_chapter && (
-                              <div className="flex items-center gap-1.5 ml-4">
-                                <span className="text-xs text-slate-500 font-medium italic">↪ {material.sub_chapter}</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-[1px] bg-slate-400 ml-1.5"></div>
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{row.end_time?.substring(0, 5)}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="border-r-2 border-slate-900">
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-slate-900 text-lg tracking-tight group-hover:text-blue-600 transition-colors uppercase">
+                                {row.subject}
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              {material && material.chapter ? (
+                                <div className="p-3 bg-blue-50/50 rounded-2xl border border-blue-100/50 space-y-2 max-w-sm">
+                                  <div className="flex items-center gap-2">
+                                    <div className="px-2 py-0.5 rounded-md bg-blue-600 text-white text-[9px] font-black uppercase tracking-[0.2em]">
+                                      Materi Pokok
+                                    </div>
+                                    <span className="text-xs font-black text-slate-700 uppercase tracking-tight">{material.chapter}</span>
+                                  </div>
+                                  {material.sub_chapter && (
+                                    <div className="flex items-start gap-2 pl-2 border-l-2 border-blue-200 ml-1">
+                                      <span className="text-[11px] font-bold text-slate-500 leading-relaxed italic">
+                                        "{material.sub_chapter}"
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 py-1 px-3 bg-slate-50 rounded-lg border border-dashed border-slate-200 w-fit">
+                                  <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                                  <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em] italic">Progres Materi Kosong</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="border-r-2 border-slate-900">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200/50 shadow-inner">
+                                <UserCircle size={20} />
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Guru Pengampu</span>
+                                <span className="text-sm font-black text-slate-800 uppercase tracking-tight">{row.guru?.full_name}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200/50 shadow-inner">
+                                <School size={20} />
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Lokasi Kelas</span>
+                                <Badge className="bg-slate-900 border-none px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] rounded-md shadow-sm w-fit">
+                                  {row.class?.name}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right pr-8">
+                          <div className="flex flex-col items-end gap-2">
+                            {canManage && (
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                onClick={() => { setSelectedSchedule(row); setIsMaterialDialogOpen(true); }} 
+                                className="h-9 px-4 border-blue-200 hover:border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all w-full md:w-32 shadow-sm"
+                              >
+                                <BookOpen size={14} className="mr-2" /> Input Materi
+                              </Button>
+                            )}
+                            {canManage && (
+                              <div className="flex items-center gap-1.5 w-full md:w-32 justify-end">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => { setSelectedSchedule(row); setIsDialogOpen(true); }}
+                                  className="h-9 w-9 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl border border-transparent hover:border-indigo-100"
+                                >
+                                  <Edit2 size={16} />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => handleDelete(row.id)} 
+                                  className="h-9 w-9 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl border border-transparent hover:border-red-100"
+                                >
+                                  <Trash2 size={16} />
+                                </Button>
                               </div>
                             )}
-                          </>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">Belum ada input materi minggu ke-{selectedWeek}</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Users size={14} className="text-slate-400" />
-                          <span className="text-sm font-bold text-slate-700">{row.guru?.full_name}</span>
+                          </div>
+                        </TableCell>
+                      </motion.tr>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-80 text-center">
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex flex-col items-center justify-center gap-4 text-slate-300 max-w-xs mx-auto"
+                      >
+                        <div className="w-20 h-20 rounded-3xl bg-slate-50 flex items-center justify-center">
+                          <CalendarDays size={40} className="text-slate-200" />
                         </div>
-                        <div className="flex items-center gap-2">
-                          <BookOpen size={14} className="text-slate-400" />
-                          <Badge variant="outline" className="bg-slate-100 text-slate-600 border-none px-2 py-0 text-[10px] font-bold">
-                            {row.class?.name}
-                          </Badge>
+                        <div>
+                          <p className="text-slate-900 font-bold">Jadwal Kosong</p>
+                          <p className="text-sm font-medium mt-1">Tidak ada kegiatan mengajar yang terdaftar untuk hari {activeDay}.</p>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                         {canManage && (
-                          <button 
-                            onClick={() => { setSelectedSchedule(row); setIsMaterialDialogOpen(true); }} 
-                            title="Input Bab/Sub Bab"
-                            className="p-1 px-2 md:p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg flex items-center gap-1 font-bold text-[10px] border border-blue-100 whitespace-nowrap"
-                          >
-                            <BookOpen size={14} /> Materi
-                          </button>
+                          <Button variant="outline" className="mt-2 rounded-xl h-10 px-6 font-bold" onClick={() => setIsDialogOpen(true)}>
+                            Atur Jadwal Baru
+                          </Button>
                         )}
-                        {canManage && (
-                          <>
-                            <button onClick={() => { setSelectedSchedule(row); setIsDialogOpen(true); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg shrink-0">
-                              <Edit2 size={14} />
-                            </button>
-                            <button onClick={() => handleDelete(row.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0">
-                              <Trash2 size={14} />
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      </motion.div>
                     </TableCell>
                   </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={4} className="h-32 text-center text-slate-400 italic">
-                  Belum ada jadwal untuk hari {activeDay}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                )}
+              </AnimatePresence>
+            </TableBody>
+          </Table>
+        </div>
+        <div className="p-6 bg-slate-50/30 border-t border-slate-50">
+          <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest text-center">
+            Total Sesi: <span className="text-blue-600">{daySchedules.length}</span> Sesi Aktif di Hari {activeDay}
+          </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-           <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-             <Clock size={16} className="text-blue-600" /> Rasio Beban Kerja
-           </h3>
-           <p className="text-xs text-slate-500 mb-4 font-medium">Beban kerja guru dihitung berdasarkan total jam mengajar per minggu.</p>
-           <div className="space-y-4">
+      <div className="flex flex-col gap-6">
+        <div className="bg-white border border-slate-100 rounded-[32px] p-8 shadow-xl shadow-slate-200/40">
+           <div className="flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                <Clock size={20} />
+              </div>
+              <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg">Pemuatan Personil</h3>
+           </div>
+           
+           <div className="space-y-6">
               {teacherWorkload.length > 0 ? teacherWorkload.map((item, i) => (
-                <div key={i} className="space-y-2">
-                   <div className="flex justify-between text-[11px] font-bold">
-                     <span className="text-slate-600 uppercase tracking-tight">{item.name}</span>
-                     <span className="text-slate-800">{item.hours.toFixed(1)} Jam</span>
+                <div key={i} className="space-y-3 group">
+                   <div className="flex justify-between items-end">
+                     <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Nama Guru</span>
+                        <span className="text-sm font-black text-slate-800 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{item.name}</span>
+                     </div>
+                     <div className="text-right">
+                        <span className="text-xs font-black text-slate-900">{item.hours.toFixed(1)}</span>
+                        <span className="text-[10px] font-black text-slate-400 ml-1 uppercase">Jam / Mgg</span>
+                     </div>
                    </div>
-                   <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full ${colors[i % colors.length]} rounded-full`} style={{ width: `${Math.min((item.hours/30)*100, 100)}%` }}></div>
+                   <div className="h-3 w-full bg-slate-50 rounded-full overflow-hidden border border-slate-100 p-0.5">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min((item.hours/30)*100, 100)}%` }}
+                        className={`h-full ${colors[i % colors.length]} rounded-full shadow-inner`}
+                      ></motion.div>
                    </div>
                 </div>
               )) : (
-                <p className="text-xs text-slate-400 italic">Data belum tersedia</p>
+                <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest italic">Belum ada statistik pemuatan</p>
+                </div>
               )}
-           </div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden text-white flex flex-col justify-center">
-           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/20 rounded-full blur-3xl"></div>
-           <h3 className="font-bold mb-4 flex items-center gap-2">
-             <Users size={16} className="text-blue-400" /> Optimalitas Pengajaran
-           </h3>
-           <div className="flex items-center gap-8 py-4">
-              <div className="flex flex-col">
-                  <span className="text-4xl font-bold">94%</span>
-                  <span className="text-[10px] uppercase font-bold text-slate-500 tracking-widest mt-1">EFEKTIFITAS</span>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                Sistem menghitung optimalitas berdasarkan distribusi jadwal dan ketersediaan ruang kelas secara real-time.
-              </p>
            </div>
         </div>
       </div>
 
       {/* Material Progress Dialog */}
       <Dialog open={isMaterialDialogOpen} onOpenChange={setIsMaterialDialogOpen}>
-        <DialogContent className="sm:max-w-[450px] p-0 border-none shadow-2xl">
-          <div className="bg-indigo-600 p-6">
-            <DialogHeader>
-              <DialogTitle className="text-white font-bold flex items-center gap-2">
-                <BookOpen size={20} /> Progres Minggu {selectedWeek}
-              </DialogTitle>
-              <p className="text-indigo-100 text-xs font-medium">Input Bab & Sub Bab untuk Pelajaran {selectedSchedule?.subject}</p>
+        <DialogContent className="sm:max-w-[480px] p-0 border-none shadow-2xl rounded-[32px] overflow-hidden">
+          <div className="bg-[#4f46e5] p-8 text-white relative">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+            <DialogHeader className="relative z-10">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <BookOpen size={20} />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-black uppercase tracking-tight">Progres Materi</DialogTitle>
+                  <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest">Minggu ke-{selectedWeek} • {selectedSchedule?.subject}</p>
+                </div>
+              </div>
             </DialogHeader>
           </div>
           
-          <form onSubmit={handleSaveMaterial} className="p-6 space-y-5">
-            <div className="space-y-2">
-              <Label className="text-slate-600 font-bold">Bab (Materi Pokok)</Label>
-              <Input 
-                placeholder="Contoh: Bab 1 Penjumlahan" 
-                value={materialData.chapter}
-                onChange={(e) => setMaterialData({ ...materialData, chapter: e.target.value })}
-                className="border-slate-200 focus-visible:ring-indigo-400"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-slate-600 font-bold">Sub Bab / Topik</Label>
-              <Input 
-                placeholder="Contoh: Penjumlahan Bilangan Bulat" 
-                value={materialData.sub_chapter}
-                onChange={(e) => setMaterialData({ ...materialData, sub_chapter: e.target.value })}
-                className="border-slate-200 focus-visible:ring-indigo-400"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-slate-600 font-bold">Catatan Tambahan</Label>
-              <Input 
-                placeholder="Cth: Ref: Buku Paket Hal 20" 
-                value={materialData.notes}
-                onChange={(e) => setMaterialData({ ...materialData, notes: e.target.value })}
-                className="border-slate-200 focus-visible:ring-indigo-400"
-              />
+          <form onSubmit={handleSaveMaterial} className="p-8 space-y-6 bg-white">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Bab / Materi Pokok</Label>
+                <Input 
+                  placeholder="Contoh: Bab 1 Operasi Hitung" 
+                  value={materialData.chapter}
+                  onChange={(e) => setMaterialData({ ...materialData, chapter: e.target.value })}
+                  className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus-visible:ring-indigo-500 px-4"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Sub Bab / Topik Detail</Label>
+                <Input 
+                  placeholder="Contoh: Penjumlahan Bilangan Bulat" 
+                  value={materialData.sub_chapter}
+                  onChange={(e) => setMaterialData({ ...materialData, sub_chapter: e.target.value })}
+                  className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus-visible:ring-indigo-500 px-4"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Catatan Tambahan</Label>
+                <Input 
+                  placeholder="Opsional: Referensi halaman atau catatan" 
+                  value={materialData.notes}
+                  onChange={(e) => setMaterialData({ ...materialData, notes: e.target.value })}
+                  className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus-visible:ring-indigo-500 px-4"
+                />
+              </div>
             </div>
 
-            <DialogFooter className="pt-4">
-              <Button type="button" variant="ghost" onClick={() => setIsMaterialDialogOpen(false)}>Batal</Button>
-              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 font-bold" disabled={loading}>
-                {loading ? "Menyimpan..." : "Simpan Progres"}
+            <DialogFooter className="gap-3 pt-4">
+              <Button type="button" variant="ghost" onClick={() => setIsMaterialDialogOpen(false)} className="h-12 rounded-xl font-bold text-slate-400">
+                Batal
+              </Button>
+              <Button type="submit" className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-lg shadow-indigo-100 transition-all flex-1 md:flex-none" disabled={loading}>
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>Menyimpan...</span>
+                  </div>
+                ) : "Simpan Progres"}
               </Button>
             </DialogFooter>
           </form>
@@ -567,49 +746,59 @@ export default function JadwalMengajar() {
 
       {/* Fixed Schedule Dialog (Authorized Only) */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] p-0 border-none overflow-hidden">
-          <div className="bg-blue-600 p-6">
-            <DialogHeader>
-              <DialogTitle className="text-white font-bold">{selectedSchedule ? "Edit Jadwal Mengajar" : "Tambah Jadwal Baru"}</DialogTitle>
-              <p className="text-blue-100 text-xs">Atur jadwal pasti tiap minggu untuk mata pelajaran</p>
+        <DialogContent className="sm:max-w-[550px] p-0 border-none shadow-2xl rounded-[32px] overflow-hidden">
+          <div className="bg-blue-600 p-8 text-white relative">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+            <DialogHeader className="relative z-10">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <CalendarDays size={20} />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-black uppercase tracking-tight">
+                    {selectedSchedule ? "Perbarui Jadwal" : "Konfigurasi Jadwal"}
+                  </DialogTitle>
+                  <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest">Pengaturan Rutinitas KBM Mingguan</p>
+                </div>
+              </div>
             </DialogHeader>
           </div>
           
-          <form onSubmit={handleSaveSchedule} className="p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleSaveSchedule} className="p-8 space-y-6 bg-white">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label>Guru Pengampu</Label>
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Guru Pengampu</Label>
                 <Select 
                   value={formData.guru_id} 
                   onValueChange={(val) => setFormData({ ...formData, guru_id: val })}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih guru" />
+                  <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500">
+                    <SelectValue placeholder="Pilih Guru" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-slate-100 shadow-xl">
                     {guruList.map(guru => (
-                      <SelectItem key={guru.id} value={guru.id}>{guru.full_name}</SelectItem>
+                      <SelectItem key={guru.id} value={guru.id} className="font-bold py-3">{guru.full_name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Kelas</Label>
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Target Kelas</Label>
                 <Select 
                   value={formData.class_id} 
                   onValueChange={(val) => setFormData({ ...formData, class_id: val })}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder={activeClasses.length === 0 ? "Belum ada data kelas" : "Pilih kelas"} />
+                  <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500">
+                    <SelectValue placeholder={activeClasses.length === 0 ? "Belum ada data" : "Pilih Kelas"} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-slate-100 shadow-xl">
                     {activeClasses.length > 0 ? (
                       activeClasses.map(cls => (
-                        <SelectItem key={cls.id} value={cls.id}>{cls.name}</SelectItem>
+                        <SelectItem key={cls.id} value={cls.id} className="font-bold py-3">{cls.name}</SelectItem>
                       ))
                     ) : (
-                      <SelectItem value="none" disabled>
-                        Belum ada data kelas di TA ini
+                      <SelectItem value="none" disabled className="font-bold">
+                        Belum ada data kelas
                       </SelectItem>
                     )}
                   </SelectContent>
@@ -618,56 +807,63 @@ export default function JadwalMengajar() {
             </div>
 
             <div className="space-y-2">
-              <Label>Mata Pelajaran</Label>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Mata Pelajaran</Label>
               <Input 
-                placeholder="Contoh: Matematika" 
+                placeholder="Contoh: Ilmu Pengetahuan Alam" 
                 value={formData.subject}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                 required
+                className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
               />
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Hari</Label>
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Hari</Label>
                 <Select 
                   value={formData.day} 
                   onValueChange={(val) => setFormData({ ...formData, day: val })}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
+                  <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus:ring-blue-500">
+                    <div className="flex items-center gap-2">
+                      <SelectValue />
+                    </div>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-slate-100 shadow-xl">
                     {DAYS.map(day => (
-                      <SelectItem key={day} value={day}>{day}</SelectItem>
+                      <SelectItem key={day} value={day} className="font-bold">{day}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Jam Mulai</Label>
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Mulai</Label>
                 <Input 
                   type="time"
                   value={formData.start_time}
                   onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
                   required
+                  className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Jam Selesai</Label>
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Selesai</Label>
                 <Input 
                   type="time"
                   value={formData.end_time}
                   onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
                   required
+                  className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus:ring-blue-500"
                 />
               </div>
             </div>
 
-            <DialogFooter className="pt-4">
-              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)}>Batal</Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700 font-bold" disabled={loading}>
-                {loading ? "Menyimpan..." : "Simpan Jadwal"}
+            <DialogFooter className="gap-3 pt-4">
+              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-12 rounded-xl font-bold text-slate-400">
+                Tutup
+              </Button>
+              <Button type="submit" className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-100 transition-all flex-1" disabled={loading}>
+                {loading ? "Proses..." : (selectedSchedule ? "Simpan Perubahan" : "Konfirmasi Jadwal")}
               </Button>
             </DialogFooter>
           </form>

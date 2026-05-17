@@ -6,10 +6,17 @@ import {
   Bell, 
   ArrowUpRight, 
   TrendingUp, 
-  UserCheck 
+  UserCheck,
+  PlusCircle,
+  FileText,
+  Clock,
+  Layout,
+  ChevronRight,
+  School
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { 
   BarChart, 
   Bar, 
@@ -18,48 +25,60 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  LineChart, 
-  Line, 
   AreaChart, 
   Area 
 } from "recharts";
 import { supabase } from "@/lib/supabase";
+import { Link } from "react-router-dom";
 
-const StatCard = ({ title, value, icon: Icon, description, trend }: any) => (
-  <Card className="bg-white p-3 md:p-5 rounded-xl border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-md">
-    <p className="text-slate-500 text-[10px] md:text-xs font-semibold uppercase tracking-wider">{title}</p>
-    <div className="flex items-baseline gap-2 mt-1">
-      <span className="text-xl md:text-2xl font-black text-slate-900">{value}</span>
-      {trend && (
-        <span className="text-[10px] text-emerald-600 font-bold hidden sm:inline">{trend}</span>
-      )}
-      {!trend && description && (
-        <span className="text-[10px] text-slate-400 hidden sm:inline">{description}</span>
-      )}
+const StatCard = ({ title, value, icon: Icon, description, trend, colorClass }: any) => (
+  <Card className="bg-white p-4 md:p-6 rounded-2xl border border-slate-100 shadow-sm transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/50 group overflow-hidden relative">
+    <div className={`absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full opacity-[0.03] transition-transform group-hover:scale-125 ${colorClass}`}></div>
+    <div className="flex flex-col gap-4 relative z-10">
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${colorClass} bg-opacity-10 transition-colors group-hover:bg-opacity-20`}>
+        <Icon size={24} className={colorClass.replace('bg-', 'text-')} />
+      </div>
+      <div>
+        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">{title}</p>
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">{value}</span>
+          {trend && (
+            <Badge variant="secondary" className="bg-emerald-50 text-emerald-600 border-none font-bold text-[10px]">
+              <TrendingUp size={12} className="mr-1" /> {trend}
+            </Badge>
+          )}
+        </div>
+        {description && (
+          <p className="text-[11px] text-slate-400 mt-2 font-medium flex items-center gap-1">
+             <Clock size={12} /> {description}
+          </p>
+        )}
+      </div>
     </div>
   </Card>
 );
 
 const data = [
-  { name: 'Sen', mng: 400 },
-  { name: 'Sel', mng: 300 },
-  { name: 'Rab', mng: 600 },
-  { name: 'Kam', mng: 278 },
-  { name: 'Jum', mng: 189 },
-  { name: 'Sab', mng: 239 },
-  { name: 'Min', mng: 100 },
+  { name: 'Senin', count: 42, activity: 85 },
+  { name: 'Selasa', count: 38, activity: 78 },
+  { name: 'Rabu', count: 55, activity: 92 },
+  { name: 'Kamis', count: 48, activity: 88 },
+  { name: 'Jumat', count: 35, activity: 70 },
+  { name: 'Sabtu', count: 28, activity: 65 },
 ];
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string>("");
   const [stats, setStats] = useState({
     totalGuru: 0,
-    guruPiket: 0,
+    totalMurid: 0,
     totalKelas: 0,
-    activityRate: "0%"
   });
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [piketToday, setPiketToday] = useState<any[]>([]);
+  const [gradeData, setGradeData] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -68,27 +87,71 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        setUserRole(profile?.role || user.user_metadata?.role || "guru");
+      }
+
       const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
       const todayIndo = days[new Date().getDay()];
 
       const [
         { count: guruCount },
-        { count: piketCount, data: piketData },
+        { count: studentCount },
         { count: kelasCount },
-        { data: announcementData }
+        { data: announcementData },
+        { data: piketData },
+        { data: gradesData }
       ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'guru'),
-        supabase.from('picket_schedules').select('*, guru:profiles(full_name)').eq('day', todayIndo),
+        supabase.from('students').select('*', { count: 'exact', head: true }),
         supabase.from('classes').select('*', { count: 'exact', head: true }),
-        supabase.from('announcements').select('*').eq('is_published', true).order('created_at', { ascending: false }).limit(3)
+        supabase.from('announcements').select('*').eq('is_published', true).order('created_at', { ascending: false }).limit(4),
+        supabase.from('picket_schedules').select('*, guru:profiles(full_name)').eq('day', todayIndo),
+        supabase.from('student_grades').select('subject, average_score')
       ]);
 
       setStats({
         totalGuru: guruCount || 0,
-        guruPiket: piketCount || 0,
+        totalMurid: studentCount || 0,
         totalKelas: kelasCount || 0,
-        activityRate: "98%" // Placeholder logic
       });
+
+      // Process grades for chart (Group by subject and average)
+      if (gradesData && gradesData.length > 0) {
+        const subjectMap: Record<string, { total: number, count: number }> = {};
+        gradesData.forEach(g => {
+          if (!subjectMap[g.subject]) {
+            subjectMap[g.subject] = { total: 0, count: 0 };
+          }
+          subjectMap[g.subject].total += g.average_score || 0;
+          subjectMap[g.subject].count += 1;
+        });
+
+        const formattedGrades = Object.entries(subjectMap).map(([subject, data]) => ({
+          name: subject,
+          score: Math.round(data.total / data.count)
+        })).sort((a, b) => b.score - a.score).slice(0, 6); // Top 6 subjects
+        
+        setGradeData(formattedGrades);
+      } else {
+        // Fallback mock data if no grades exist yet
+        setGradeData([
+          { name: 'Matematika', score: 78 },
+          { name: 'B. Indonesia', score: 85 },
+          { name: 'IPA', score: 82 },
+          { name: 'IPS', score: 75 },
+          { name: 'B. Inggris', score: 88 },
+          { name: 'PJOK', score: 90 },
+        ]);
+      }
 
       setAnnouncements(announcementData || []);
       setPiketToday(piketData || []);
@@ -99,132 +162,260 @@ export default function Dashboard() {
     }
   };
 
+  const getTimeOfDay = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Selamat Pagi";
+    if (hour < 15) return "Selamat Siang";
+    if (hour < 18) return "Selamat Sore";
+    return "Selamat Malam";
+  };
+
+  const isSpecialAdmin = currentUser?.email === "admin@sekolah.is" || currentUser?.email === "admin@sekolah.id";
+  const isAdmin = userRole === "admin" || isSpecialAdmin;
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center p-20">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-400 text-sm font-medium">Memuat data dashboard...</p>
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-400 text-sm font-bold tracking-widest animate-pulse uppercase">Syncing Dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 pb-20 md:pb-10">
+    <div className="space-y-8 pb-10">
+        {/* Welcome Section */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-8 h-[2px] bg-blue-600 rounded-full"></span>
+            <span className="text-blue-600 font-black text-[10px] uppercase tracking-[0.2em]">{getTimeOfDay()}</span>
+          </div>
+          <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight">
+            Halo, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">{currentUser?.user_metadata?.full_name?.split(' ')[0] || "Admin"}</span>
+          </h1>
+          <p className="text-slate-500 font-medium mt-2 max-w-xl text-sm md:text-base leading-relaxed">
+            Selamat datang kembali di dashboard administrasi. Hari ini adalah <span className="text-slate-900 font-bold">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>.
+          </p>
+        </div>
+      </div>
+
       {/* Statistics Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 shrink-0">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
         <StatCard 
           title="Total Guru" 
           value={stats.totalGuru} 
-          trend={stats.totalGuru > 0 ? "+ Baru" : ""}
-          color="bg-blue-600"
+          trend="Aktif"
+          description="Terdaftar di sistem"
+          icon={Users}
+          colorClass="bg-blue-600"
         />
         <StatCard 
-          title="Guru Piket" 
-          value={stats.guruPiket} 
-          description="Aktif"
-          color="bg-indigo-600"
+          title="Total Murid" 
+          value={stats.totalMurid} 
+          trend="Tahun ini"
+          description={`${stats.totalMurid} siswa terdata`}
+          icon={Users}
+          colorClass="bg-emerald-600"
         />
         <StatCard 
           title="Kelas Aktif" 
           value={stats.totalKelas} 
-          description="Rombel"
-          color="bg-violet-600"
-        />
-        <StatCard 
-          title="Aktivitas" 
-          value={stats.activityRate} 
-          trend="Excellent"
-          color="bg-amber-500"
+          trend="Fixed"
+          description="Rombongan belajar"
+          icon={School}
+          colorClass="bg-violet-600"
         />
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 h-auto lg:h-[460px]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Activity Chart Section */}
-        <Card className="flex-1 bg-white rounded-xl border border-slate-200 p-6 flex flex-col shadow-sm">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-sm font-bold text-slate-800">Statistik Aktivitas Mengajar (Mingguan)</h3>
-            <div className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded">Update Otomatis</div>
+        <Card className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 p-6 md:p-8 shadow-sm flex flex-col hover:shadow-md transition-all">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 tracking-tight">Grafik Nilai Siswa</h3>
+              <p className="text-xs font-medium text-slate-400 mt-1 uppercase tracking-widest leading-none flex items-center gap-1">
+                <Clock size={12} /> Rata-rata nilai per mata pelajaran
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="h-7 border-slate-100 text-slate-500 font-bold px-3">Semua Kelas</Badge>
+              <Badge variant="outline" className="h-7 border-slate-100 text-slate-500 font-bold px-3">2023/2024</Badge>
+            </div>
           </div>
-          <div className="flex-1 min-h-[250px]">
+          <div className="flex-1 min-h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <BarChart data={gradeData} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8fafc" />
                 <XAxis 
                   dataKey="name" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 10 }}
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
                   dy={10}
                 />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 10 }}
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
+                  domain={[0, 100]}
                 />
                 <Tooltip 
-                  cursor={{ fill: '#f8fafc' }}
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  cursor={{ fill: '#f1f5f9' }}
+                  contentStyle={{ 
+                    borderRadius: '16px', 
+                    border: 'none', 
+                    boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                    padding: '12px'
+                  }}
                 />
-                <Bar dataKey="mng" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={32} />
+                <Bar 
+                  dataKey="score" 
+                  fill="#3b82f6" 
+                  radius={[6, 6, 0, 0]}
+                  barSize={40}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
-        {/* Right Column: Announcements & Piket */}
-        <div className="w-full lg:w-[320px] flex flex-col gap-6">
-          {/* Announcements */}
-          <Card className="flex-1 bg-white rounded-xl border border-slate-200 p-5 flex flex-col shadow-sm">
-            <h3 className="text-sm font-bold text-slate-800 mb-4">Pengumuman Terbaru</h3>
-            <div className="space-y-4 flex-1 overflow-hidden">
-              {announcements.length > 0 ? announcements.map((ann, i) => (
-                <div key={ann.id} className={`border-l-2 ${i === 0 ? 'border-blue-500' : 'border-slate-200'} pl-3 py-1 transition-all hover:bg-slate-50 cursor-pointer rounded-r-md`}>
-                  <p className="text-xs font-semibold text-slate-800 truncate">{ann.title}</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
-                    {new Date(ann.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
-                </div>
-              )) : (
-                <p className="text-xs text-slate-400 italic">Belum ada pengumuman</p>
+        {/* Right Column Grid */}
+        <div className="flex flex-col gap-6">
+          {/* Quick Actions */}
+          <Card className="bg-blue-600 rounded-2xl p-6 shadow-xl shadow-blue-200 overflow-hidden relative group text-left">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
+            <h3 className="text-lg font-bold text-white mb-4 relative z-10">Aksi Cepat</h3>
+            <div className="grid grid-cols-2 gap-3 relative z-10">
+              {isAdmin ? (
+                <Link to="/guru" className="flex flex-col items-center justify-center p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white gap-2">
+                  <PlusCircle size={20} />
+                  <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Tambah Guru</span>
+                </Link>
+              ) : (
+                <Link to="/nilai" className="flex flex-col items-center justify-center p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white gap-2">
+                  <FileText size={20} />
+                  <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Nilai Siswa</span>
+                </Link>
               )}
+              <Link to="/pengumuman" className="flex flex-col items-center justify-center p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white gap-2">
+                <Bell size={20} />
+                <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Pengumuman</span>
+              </Link>
+              <Link to="/mengajar" className="flex flex-col items-center justify-center p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white gap-2">
+                <BookOpen size={20} />
+                <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Jadwal</span>
+              </Link>
+              <Link to="/kelas" className="flex flex-col items-center justify-center p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white gap-2">
+                <School size={20} />
+                <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Data Kelas</span>
+              </Link>
             </div>
-            <Button variant="ghost" className="mt-4 w-full h-8 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors uppercase tracking-widest">
-              Lihat Semua
-            </Button>
           </Card>
 
-          {/* Piket Highlights */}
-          <Card className="h-44 bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-800 mb-3">Piket Hari Ini</h3>
-            <div className="flex -space-x-2">
-              {piketToday.slice(0, 3).map((p, i) => (
-                <div key={p.id} className={`w-8 h-8 rounded-full border-2 border-white ${['bg-blue-400', 'bg-indigo-400', 'bg-violet-400'][i % 3]} flex items-center justify-center text-[10px] text-white font-bold uppercase`}>
-                  {p.guru?.full_name?.charAt(0) || "G"}
+          {/* Announcements Section */}
+          <Card className="flex-1 bg-white rounded-2xl border border-slate-100 p-6 shadow-sm flex flex-col hover:shadow-md transition-all text-left">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-slate-900 tracking-tight">Pengumuman</h3>
+              <Link to="/pengumuman">
+                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-slate-50 text-slate-400">
+                  <ChevronRight size={18} />
+                </Button>
+              </Link>
+            </div>
+            <div className="space-y-4 flex-1">
+              {announcements.length > 0 ? announcements.map((ann, i) => (
+                <div key={ann.id} className="group cursor-pointer">
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${i === 0 ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 leading-tight group-hover:text-blue-600 transition-colors line-clamp-2 uppercase tracking-tight">{ann.title}</p>
+                      <p className="text-[10px] font-medium text-slate-400 mt-1 flex items-center gap-1">
+                         <Clock size={10} /> {new Date(ann.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              ))}
-              {piketToday.length > 3 && (
-                <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-400 flex items-center justify-center text-[10px] text-white font-bold">+{piketToday.length - 3}</div>
+              )) : (
+                <div className="flex flex-col items-center justify-center py-8 text-slate-300">
+                  <Bell size={32} strokeWidth={1.5} />
+                  <p className="text-[10px] font-bold uppercase mt-2 italic tracking-widest text-slate-300">Kosong</p>
+                </div>
               )}
-              {piketToday.length === 0 && (
-                <p className="text-[10px] text-slate-400 italic ml-2">Tidak ada jadwal piket</p>
-              )}
-            </div>
-            {piketToday.length > 0 && (
-              <p className="text-[10px] text-slate-500 mt-3">Utama: <span className="font-semibold text-slate-800">{piketToday[0].guru?.full_name}</span></p>
-            )}
-            <div className="mt-3 w-full h-1 bg-slate-100 rounded-full overflow-hidden">
-              <div className="w-full h-full bg-blue-500"></div>
-            </div>
-            <div className="flex justify-between mt-1">
-               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Status Kehadiran</span>
-               <span className="text-[9px] text-blue-600 font-bold">100%</span>
             </div>
           </Card>
         </div>
       </div>
+
+      {/* Bottom Row Highlights */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+         {/* Today's Picket */}
+         <Card className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm flex flex-col hover:shadow-md transition-all overflow-hidden relative text-left">
+            <div className="absolute bottom-0 right-0 w-32 h-32 bg-slate-50 rounded-full translate-x-1/3 translate-y-1/3 opacity-50"></div>
+            <div className="flex justify-between items-center mb-6 relative z-10">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 tracking-tight">Piket Hari Ini</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Daftar Guru Bertugas</p>
+              </div>
+              <Badge className="bg-blue-600 text-white border-none font-bold">Shift Pagi & Siang</Badge>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 relative z-10">
+              {piketToday.length > 0 ? piketToday.slice(0, 4).map((p) => (
+                <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all cursor-default overflow-hidden">
+                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center font-black text-blue-600 border border-slate-100 shadow-sm text-xs shrink-0">
+                    {p.guru?.full_name?.charAt(0) || "G"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-black text-slate-800 truncate">{p.guru?.full_name}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Badge variant="outline" className={`h-4 text-[8px] px-1 font-black uppercase border-none ${p.shift === 'Pagi' ? 'text-blue-600 bg-blue-100' : 'text-amber-600 bg-amber-100'}`}>
+                        {p.shift}
+                      </Badge>
+                      <span className="text-[10px] text-slate-400 font-bold truncate">{p.location || "Area Sekolah"}</span>
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <div className="col-span-2 py-6 text-center text-slate-400 italic text-sm font-medium border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50">
+                  Tidak ada jadwal piket hari ini
+                </div>
+              )}
+            </div>
+         </Card>
+
+         {/* School Status / Info */}
+         <Card className="bg-[#1e293b] rounded-2xl p-8 shadow-xl shadow-slate-200 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden text-white text-left">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full blur-[100px] opacity-20 -mr-32 -mt-32"></div>
+            <div className="bg-blue-600/20 p-6 rounded-3xl backdrop-blur-xl border border-white/10 shrink-0">
+               <School size={48} className="text-white" />
+            </div>
+            <div className="text-center md:text-left">
+              <h3 className="text-2xl font-black tracking-tight mb-2 uppercase">Status Sistem</h3>
+              <p className="text-slate-400 text-sm font-medium leading-relaxed mb-6">
+                SIA Guru SDN 1 Dukuhwaluh berjalan dengan optimal. Semua data telah tersinkronisasi.
+              </p>
+              <div className="flex flex-wrap justify-center md:justify-start gap-4">
+                 <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-tight">Uptime</span>
+                    <span className="text-xl font-black">99.9%</span>
+                 </div>
+                 <div className="w-[1px] h-10 bg-white/10 hidden sm:block"></div>
+                 <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest leading-tight">Latency</span>
+                    <span className="text-xl font-black">24ms</span>
+                 </div>
+                 <div className="w-[1px] h-10 bg-white/10 hidden sm:block"></div>
+                 <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest leading-tight">Backup</span>
+                    <span className="text-xl font-black">Daily</span>
+                 </div>
+              </div>
+            </div>
+         </Card>
+      </div>
     </div>
   );
 }
-

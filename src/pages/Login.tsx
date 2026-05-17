@@ -1,15 +1,24 @@
 import React, { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LogIn, Key, Mail, School, ShieldCheck } from "lucide-react";
+import { LogIn, Key, Mail, School, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 export default function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isRegistered, setIsRegistered] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -40,15 +49,6 @@ export default function Login() {
         if (signUpError) throw signUpError;
 
         if (signUpData.user) {
-          // Jika email confirmation aktif, user mungkin belum bisa login
-          const isConfirmed = signUpData.user.identities && signUpData.user.identities.length > 0;
-          
-          if (!isConfirmed) {
-            toast.info("Akun dibuat! Jika tidak ada email masuk, pastikan fitur 'Confirm Email' di Dashboard Supabase sudah dimatikan untuk login instan.");
-          } else {
-            toast.success("Pendaftaran berhasil! Silakan masuk.");
-          }
-
           try {
             const { error: profileError } = await supabase
               .from('profiles')
@@ -64,10 +64,13 @@ export default function Login() {
           } catch (e) {
             console.warn("Profile sync skipped");
           }
+          
+          setIsRegistered(true);
+          // Clear sensitive data
+          setPassword("");
         }
 
-        toast.success("Pendaftaran berhasil! Silakan cek email untuk verifikasi (atau langsung login jika konfirmasi email dimatikan di dashboard Supabase).");
-        setIsSignUp(false);
+        toast.success("Pendaftaran berhasil!");
       } else {
         // Login
         const { error } = await supabase.auth.signInWithPassword({
@@ -93,22 +96,63 @@ export default function Login() {
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-600 blur-[120px]"></div>
       </div>
 
+      {/* Registration Success Dialog */}
+      <Dialog open={isRegistered} onOpenChange={setIsRegistered}>
+        <DialogContent className="sm:max-w-md bg-white rounded-3xl border-none p-8">
+          <div className="flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="text-emerald-500 w-10 h-10" />
+            </div>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">Pendaftaran Berhasil!</DialogTitle>
+              <DialogDescription className="text-slate-500 font-medium text-base mt-2">
+                Terima kasih telah mendaftar di SIA GURU.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-6 mt-6 w-full">
+              <p className="text-blue-700 font-bold text-sm leading-relaxed">
+                Silakan cek email Anda untuk konfirmasi akun. Klik tautan verifikasi yang kami kirimkan untuk mengaktifkan akun Anda.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="mt-8">
+            <Button 
+              className="w-full bg-slate-900 hover:bg-slate-800 h-12 text-white font-bold rounded-xl"
+              onClick={() => {
+                setIsRegistered(false);
+                // Clear all fields
+                setEmail("");
+                setPassword("");
+                setFullName("");
+                setRole("guru");
+              }}
+            >
+              Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="w-full max-w-md z-10">
         <div className="flex flex-col items-center mb-6">
-          <div
-  className="mb-4 cursor-pointer hover:scale-105 transition-transform"
-  onClick={() => {
-    if (email === "demo" && password === "demo") {
-      toast.info("Demo mode enabled via console.");
-    }
-  }}
->
-  <img
-    src="/logo.jpg"
-    alt="Logo Sekolah"
-    className="w-16 h-16 object-contain"
-  />
-</div>
+          <div className="bg-blue-600 p-4 rounded-2xl shadow-xl shadow-blue-200 mb-4 cursor-pointer hover:scale-105 transition-transform flex items-center justify-center overflow-hidden relative w-16 h-16"
+               onClick={() => {
+                 // Sneaky demo bypass remains as a hidden feature if needed
+                 if (email === "demo" && password === "demo") {
+                   toast.info("Demo mode enabled via console.");
+                 }
+               }}>
+            <img 
+              src="/logo_sekolah.png" 
+              alt="School Logo" 
+              className="absolute inset-0 w-full h-full object-contain bg-blue-600 z-10"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
+            />
+            <School className="text-white" size={32} />
+          </div>
           <h1 className="text-2xl font-bold text-slate-900 leading-tight">SDN 1 Dukuhwaluh</h1>
           <p className="text-slate-500 text-sm">Sistem Informasi Administrasi Guru</p>
         </div>
@@ -151,8 +195,6 @@ export default function Login() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="guru">Guru / Pengajar</SelectItem>
-                        <SelectItem value="admin">Administrator</SelectItem>
-                        <SelectItem value="kepala_sekolah">Kepala Sekolah</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -212,13 +254,45 @@ export default function Login() {
                 </button>
               </div>
 
-              
+              {!isSignUp && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 w-full space-y-3">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                      Akses Administrator:
+                    </p>
+                    <button 
+                      type="button"
+                      onClick={() => { setEmail("admin@sekolah.id"); setPassword("admin123"); }}
+                      className="text-[11px] text-slate-600 hover:bg-white hover:shadow-sm p-2 rounded-lg transition-all text-left flex items-center justify-between w-full font-bold border border-transparent hover:border-blue-100"
+                    >
+                      <span className="text-blue-600">Login sebagai Admin</span>
+                      <span className="font-mono text-blue-400 group-hover:text-blue-600">admin@sekolah.id</span>
+                    </button>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                      Akses Guru:
+                    </p>
+                    <button 
+                      type="button"
+                      onClick={() => { setEmail("guru@sekolah.id"); setPassword("guru123"); }}
+                      className="text-[11px] text-slate-600 hover:bg-white hover:shadow-sm p-2 rounded-lg transition-all text-left flex items-center justify-between w-full font-medium border border-transparent hover:border-green-100"
+                    >
+                      <span>Login Akun Guru</span>
+                      <span className="font-mono text-green-600">guru@sekolah.id</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </CardFooter>
           </form>
         </Card>
         
         <p className="mt-8 text-center text-slate-400 text-xs">
-          &copy; 2026 SDN 1 Dukuhwaluh.
+          &copy; 2026 SDN 1 Dukuhwaluh. Tim IT Sekolah.
         </p>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { School, User, Hash, MoreHorizontal, Plus, Edit2, Trash2, Users, MapPin, Search, Download, FileSpreadsheet, FileText } from "lucide-react";
+import { School, User, Hash, MoreHorizontal, Plus, Edit2, Trash2, Users, MapPin, Search, Download, FileSpreadsheet, FileText, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,10 +34,13 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function Kelas() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isTeacher, setIsTeacher] = useState(false);
+  const [isKepalaSekolah, setIsKepalaSekolah] = useState(false);
   const [loading, setLoading] = useState(true);
   const [classes, setClasses] = useState<any[]>([]);
   const [gurus, setGurus] = useState<any[]>([]);
-  const [canManage, setCanManage] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedKelas, setSelectedKelas] = useState<any>(null);
   
@@ -89,6 +92,7 @@ export default function Kelas() {
   const checkUserRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
+      setCurrentUser(user);
       // Check database first for most accurate role
       const { data: profile } = await supabase
         .from('profiles')
@@ -96,11 +100,17 @@ export default function Kelas() {
         .eq('id', user.id)
         .single();
       
-      const role = profile?.role || user.user_metadata?.role;
+      const role = profile?.role || user.user_metadata?.role || "guru";
       const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
-      setCanManage(role === "admin" || role === "guru" || isSpecialAdmin);
+      
+      const adminStatus = role === "admin" || isSpecialAdmin;
+      setIsAdmin(adminStatus);
+      setIsTeacher(role === "guru");
+      setIsKepalaSekolah(role === "kepala_sekolah");
     }
   };
+
+  const canManageStudents = isAdmin || isTeacher || isKepalaSekolah;
 
   const fetchGurus = async () => {
     const { data } = await supabase.from('profiles').select('id, full_name').eq('role', 'guru').order('full_name');
@@ -531,33 +541,57 @@ export default function Kelas() {
   };
 
   return (
-    <div className="space-y-6 pb-20 md:pb-10">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-8 pb-20 md:pb-12">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Manajemen Kelas</h1>
-          <p className="text-xs md:text-sm text-slate-500">Daftar kelas dan wali kelas SDN 1 Dukuhwaluh</p>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-8 h-[2px] bg-blue-600 rounded-full"></span>
+            <span className="text-blue-600 font-black text-[10px] uppercase tracking-[0.2em]">Administrasi</span>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Manajemen Kelas</h1>
+          <p className="text-slate-500 font-medium mt-1">
+            Pengelolaan data kelompok belajar dan wali kelas <span className="text-slate-900 font-bold">SDN 1 Dukuhwaluh</span>.
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        
+        <div className="flex flex-wrap items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="flex-1 sm:flex-none gap-2 h-9 md:h-10 text-xs md:text-sm">
-                <Download size={16} /> Export
+              <Button variant="outline" className="h-12 px-6 border-slate-200 hover:border-slate-900 hover:bg-slate-50 rounded-xl font-bold text-slate-600 transition-all gap-2 shadow-sm">
+                <Download size={18} />
+                <span>Export Data</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[180px]">
-              <DropdownMenuItem onClick={exportToExcel} className="gap-2 cursor-pointer">
-                <FileSpreadsheet size={16} className="text-emerald-600" />
-                <span>Export ke Excel</span>
+            <DropdownMenuContent align="end" className="w-[200px] rounded-xl border-slate-100 shadow-xl p-1">
+              <DropdownMenuItem onClick={exportToExcel} className="gap-3 py-3 px-4 rounded-lg cursor-pointer focus:bg-emerald-50 focus:text-emerald-700">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
+                  <FileSpreadsheet size={16} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-sm">Excel Report</span>
+                  <span className="text-[10px] text-slate-400 font-medium tracking-tight">Format Spreadsheet</span>
+                </div>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportToPDF} className="gap-2 cursor-pointer">
-                <FileText size={16} className="text-red-600" />
-                <span>Export ke PDF</span>
+              <DropdownMenuItem onClick={exportToPDF} className="gap-3 py-3 px-4 rounded-lg cursor-pointer focus:bg-red-50 focus:text-red-700">
+                <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-600">
+                  <FileText size={16} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-sm">PDF Document</span>
+                  <span className="text-[10px] text-slate-400 font-medium tracking-tight">Format Dokumen Cetak</span>
+                </div>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {canManage && (
-            <Button onClick={() => { setSelectedKelas(null); setIsDialogOpen(true); }} className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 h-9 md:h-10 text-xs md:text-sm">
-              <Plus size={16} className="mr-0 sm:mr-2" /> <span className="hidden sm:inline">Tambah Kelas</span>
+
+          {isAdmin && (
+            <Button 
+              onClick={() => { setSelectedKelas(null); setIsDialogOpen(true); }} 
+              className="h-12 px-6 bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-200 rounded-xl transition-all flex items-center gap-2 group"
+            >
+              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> 
+              <span>Tambah Kelas</span>
             </Button>
           )}
         </div>
@@ -565,120 +599,181 @@ export default function Kelas() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
-          Array(3).fill(0).map((_, i) => (
-            <Card key={i} className="animate-pulse h-48"></Card>
+          Array(6).fill(0).map((_, i) => (
+            <div key={i} className="h-64 bg-white border border-slate-100 rounded-[32px] animate-pulse"></div>
           ))
         ) : classes.length > 0 ? (
-          classes.map(cls => (
-            <Card key={cls.id} className="border-none shadow-sm hover:shadow-md transition-all overflow-hidden group">
-              <div className="h-2 bg-blue-600/10 group-hover:bg-blue-600 transition-colors"></div>
-              <CardContent className="p-6">
-                 <div className="flex justify-between items-start mb-6">
-                    <div className="bg-blue-50 p-3 rounded-xl text-blue-600">
-                      <School size={24} />
+          classes.map((cls, index) => (
+            <Card key={cls.id} className="border border-slate-100 rounded-[32px] shadow-sm hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-500 overflow-hidden group bg-white relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              
+              <CardContent className="p-8 relative z-10">
+                 <div className="flex justify-between items-start mb-8">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 group-hover:border-blue-100 transition-all duration-300">
+                      <School size={28} />
                     </div>
-                    {canManage && (
-                      <div className="flex gap-1">
-                        <button onClick={() => { setSelectedKelas(cls); setIsDialogOpen(true); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded">
+                    {(isAdmin || isTeacher || isKepalaSekolah) && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-x-2 group-hover:translate-x-0">
+                        <button 
+                          onClick={() => { setSelectedKelas(cls); setIsDialogOpen(true); }} 
+                          className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                          title="Edit Kelas"
+                        >
                           <Edit2 size={16} />
                         </button>
-                        <button onClick={() => handleDelete(cls.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
-                          <Trash2 size={16} />
-                        </button>
+                        {isAdmin && (
+                          <button 
+                            onClick={() => handleDelete(cls.id)} 
+                            className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                            title="Hapus Kelas"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     )}
                  </div>
                  
-                 <h3 className="text-xl font-bold text-slate-800">{cls.name}</h3>
-                 <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">{cls.academic_year}</p>
-                 
-                 <div className="mt-6 space-y-3">
-                    <div className="flex items-center justify-between font-medium">
-                       <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <User size={14} className="text-slate-400" />
-                          <span>Wali Kelas</span>
-                       </div>
-                       <span className="text-sm text-slate-800 truncate max-w-[120px]">{cls.wali?.full_name || "Belum ada"}</span>
+                 <div className="space-y-1">
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors uppercase">
+                      {cls.name}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{cls.academic_year}</span>
                     </div>
-                    <div className="flex items-center justify-between font-medium">
-                       <div className="flex items-center gap-2 text-sm text-slate-600">
-                          <Users size={14} className="text-slate-400" />
-                          <span>Nama Murid</span>
+                 </div>
+                 
+                 <div className="mt-8 pt-8 border-t border-slate-50 space-y-4">
+                    <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
+                            <User size={14} />
+                          </div>
+                          <div className="flex flex-col">
+                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Wali Kelas</span>
+                             <span className="text-xs font-black text-slate-800 tracking-tight truncate max-w-[140px] uppercase">
+                                {cls.wali?.full_name || "Belum Ditentukan"}
+                             </span>
+                          </div>
                        </div>
-                       <Badge variant="secondary" className="bg-blue-50 text-blue-600 border-none font-bold">
-                          {cls.student_count?.[0]?.count || 0} Siswa
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
+                            <Users size={14} />
+                          </div>
+                          <div className="flex flex-col">
+                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Populasi</span>
+                             <span className="text-xs font-black text-slate-800 tracking-tight uppercase">
+                                {cls.student_count?.[0]?.count || 0} Siswa Terdaftar
+                             </span>
+                          </div>
+                       </div>
+                       <Badge className="bg-slate-900 text-white border-none font-black text-[9px] px-2.5 py-0.5 rounded-md uppercase tracking-[0.1em]">
+                          Aktif
                        </Badge>
                     </div>
                  </div>
                  
                  <Button 
-                    variant="ghost" 
                     onClick={() => handleOpenStudentDetail(cls)}
-                    className="w-full mt-6 bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border-none shadow-none font-bold text-xs"
+                    className="w-full mt-8 h-12 bg-white hover:bg-blue-50 border-2 border-slate-100 hover:border-blue-200 text-blue-600 font-black text-[10px] uppercase tracking-[0.2em] transition-all duration-300 shadow-sm shadow-slate-100"
                  >
-                    Lihat Detail Kelas
+                    Manajemen Murid <ArrowRight size={14} className="ml-2 group-hover:translate-x-1 transition-transform" />
                  </Button>
               </CardContent>
             </Card>
           ))
         ) : (
-          <div className="col-span-full py-12 flex flex-col items-center justify-center border-2 border-dashed rounded-2xl bg-white">
-            <School className="text-slate-300 mb-2" size={48} />
-            <p className="text-slate-500 font-medium">Belum ada data kelas</p>
-            {canManage && <Button variant="link" onClick={() => setIsDialogOpen(true)}>Tambah kelas pertama</Button>}
+          <div className="col-span-full py-20 bg-white border-2 border-dashed border-slate-100 rounded-[40px] flex flex-col items-center justify-center text-center p-12">
+            <div className="w-24 h-24 rounded-[32px] bg-slate-50 flex items-center justify-center text-slate-200 mb-6">
+              <School size={48} />
+            </div>
+            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Belum Ada Kelas</h3>
+            <p className="text-slate-500 font-medium max-w-xs mt-2 mb-8">
+              Sistem membutuhkan data kelas untuk memulai manajemen akademik dan jadwal mengajar.
+            </p>
+            {isAdmin && (
+              <Button 
+                onClick={() => setIsDialogOpen(true)}
+                className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-100"
+              >
+                Inisialisasi Kelas Sekarang
+              </Button>
+            )}
           </div>
         )}
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>{selectedKelas ? "Edit Data Kelas" : "Tambah Kelas Baru"}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSave} className="space-y-4 pt-4">
+        <DialogContent className="sm:max-w-[480px] p-0 border-none shadow-2xl rounded-[32px] overflow-hidden">
+          <div className="bg-slate-900 p-8 text-white relative">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+            <DialogHeader className="relative z-10">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <School size={20} />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-black uppercase tracking-tight">
+                    {selectedKelas ? "Konfigurasi Kelas" : "Tambah Ruang Kelas"}
+                  </DialogTitle>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest leading-none mt-1">
+                    Administrasi Kelompok Belajar SDN 1 Dukuhwaluh
+                  </p>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+          
+          <form onSubmit={handleSave} className="p-8 space-y-6 bg-white">
             <div className="space-y-2">
-              <Label htmlFor="name">Nama Kelas</Label>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Identitas Kelas</Label>
               <Input 
-                id="name" 
                 placeholder="Contoh: Kelas 1A" 
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required 
+                className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
               />
             </div>
             
             <div className="space-y-2">
-              <Label>Wali Kelas</Label>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Wali Kelas Pengampu</Label>
               <Select 
                 value={formData.wali_kelas_id}
                 onValueChange={(val) => setFormData({ ...formData, wali_kelas_id: val })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500">
                   <SelectValue placeholder="Pilih wali kelas" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-slate-100 shadow-xl">
                   {gurus.map(guru => (
-                    <SelectItem key={guru.id} value={guru.id}>{guru.full_name}</SelectItem>
+                    <SelectItem key={guru.id} value={guru.id} className="font-bold py-3">{guru.full_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="academic_year">Tahun Akademik</Label>
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tahun Akademik Aktif</Label>
               <Input 
-                id="academic_year" 
                 placeholder="Contoh: 2025/2026" 
                 value={formData.academic_year}
                 onChange={(e) => setFormData({ ...formData, academic_year: e.target.value })}
                 required 
+                className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
               />
             </div>
 
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)}>Batal</Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700 font-bold" disabled={loading}>
-                {loading ? "Menyimpan..." : "Simpan Kelas"}
+            <DialogFooter className="gap-3 pt-4">
+              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-12 rounded-xl font-bold text-slate-400">
+                Tutup
+              </Button>
+              <Button type="submit" className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-100 transition-all flex-1" disabled={loading}>
+                {loading ? "Menyimpan..." : (selectedKelas ? "Simpan Perubahan" : "Konfirmasi Kelas")}
               </Button>
             </DialogFooter>
           </form>
@@ -687,45 +782,64 @@ export default function Kelas() {
 
       {/* Student Detail Dialog */}
       <Dialog open={isStudentDetailOpen} onOpenChange={setIsStudentDetailOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto p-0 border-none">
-          <div className="bg-slate-950 p-8 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-            <div className="relative z-10">
-              <Badge className="bg-blue-600 hover:bg-blue-600 mb-2">{selectedKelas?.name}</Badge>
-              <h2 className="text-3xl font-bold">Daftar Murid</h2>
-              <p className="text-slate-400 text-sm mt-1">Wali Kelas: <span className="text-white font-medium">{selectedKelas?.wali?.full_name || "Belum ditentukan"}</span></p>
-            </div>
-          </div>
-
-          <div className="p-8 space-y-6 bg-white">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 gap-4">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                  <Users size={24} />
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto p-0 border-none shadow-2xl rounded-[40px]">
+          <div className="bg-[#0f172a] p-10 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-blue-600 rounded-full blur-[120px] opacity-20 -mr-40 -mt-40"></div>
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-white/10 flex items-center justify-center">
+                    <Users size={24} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <Badge className="bg-blue-600 hover:bg-blue-600 text-[10px] font-black uppercase tracking-[0.2em] mb-1">
+                      Kelas {selectedKelas?.name}
+                    </Badge>
+                    <h2 className="text-3xl font-black uppercase tracking-tight leading-none">Daftar Murid</h2>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-900">{students.length}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Murid</p>
+                <div className="flex flex-wrap items-center gap-6">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Wali Kelas</span>
+                    <span className="text-sm font-black text-white uppercase tracking-tight">
+                      {selectedKelas?.wali?.full_name || "Belum Ditentukan"}
+                    </span>
+                  </div>
+                  <div className="w-[1px] h-8 bg-white/10"></div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Tahun Pelajaran</span>
+                    <span className="text-sm font-black text-white uppercase tracking-tight">{selectedKelas?.academic_year}</span>
+                  </div>
+                  <div className="w-[1px] h-8 bg-white/10"></div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Populasi</span>
+                    <span className="text-sm font-black text-blue-400 uppercase tracking-tight">{students.length} Siswa Aktif</span>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+
+              <div className="flex flex-wrap items-center gap-3 bg-white/5 p-2 rounded-2xl border border-white/10 backdrop-blur-sm self-start md:self-center">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="flex-1 sm:flex-none gap-2 font-bold">
-                       <Download size={16} /> Export
+                    <Button variant="ghost" className="h-11 px-6 text-white hover:bg-white/10 font-bold transition-all gap-2 text-xs uppercase tracking-widest">
+                       <Download size={16} className="text-blue-400" /> Export List
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => exportSpecificClassToExcel(selectedKelas, students)} className="gap-2 cursor-pointer">
-                      <FileSpreadsheet size={16} className="text-emerald-600" /> Excel
+                  <DropdownMenuContent align="end" className="w-[200px] rounded-xl border-slate-100 shadow-2xl p-1">
+                    <DropdownMenuItem onClick={() => exportSpecificClassToExcel(selectedKelas, students)} className="gap-3 py-3 px-4 rounded-lg cursor-pointer">
+                      <FileSpreadsheet size={16} className="text-emerald-600" /> 
+                      <span className="font-bold text-xs uppercase">Excel Spreadsheet</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => exportSpecificClassToPDF(selectedKelas, students)} className="gap-2 cursor-pointer">
-                      <FileText size={16} className="text-red-600" /> PDF
+                    <DropdownMenuItem onClick={() => exportSpecificClassToPDF(selectedKelas, students)} className="gap-3 py-3 px-4 rounded-lg cursor-pointer">
+                      <FileText size={16} className="text-red-600" /> 
+                      <span className="font-bold text-xs uppercase">PDF Document</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {canManage && (
+                <div className="w-[1px] h-6 bg-white/10"></div>
+
+                {(isAdmin || isTeacher || isKepalaSekolah) && (
                   <Button 
                     onClick={() => { 
                       setSelectedStudent(null); 
@@ -740,56 +854,80 @@ export default function Kelas() {
                       }); 
                       setIsAddStudentOpen(true); 
                     }} 
-                    className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 font-bold"
+                    className="h-11 px-6 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg shadow-blue-900/20 text-xs uppercase tracking-widest gap-2"
                   >
-                    <Plus size={16} className="mr-2" /> Tambah Murid
+                    <Plus size={16} /> <span>Pendaftaran Murid</span>
                   </Button>
                 )}
               </div>
             </div>
+          </div>
 
-            <div className="rounded-xl border border-slate-100 overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-slate-50">
-                  <TableRow>
-                    <TableHead className="font-bold text-[10px] md:text-sm">NISN</TableHead>
-                    <TableHead className="font-bold text-[10px] md:text-sm">Nama Lengkap</TableHead>
-                    <TableHead className="font-bold text-[10px] md:text-sm">TTL</TableHead>
-                    <TableHead className="font-bold text-[10px] md:text-sm">Alamat & Ortu</TableHead>
-                    {canManage && <TableHead className="text-right font-bold text-[10px] md:text-sm">Aksi</TableHead>}
+          <div className="p-0 bg-white">
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table className="border-collapse">
+                <TableHeader className="bg-slate-50 sticky top-0 z-20">
+                  <TableRow className="hover:bg-transparent border-b-2 border-slate-900">
+                    <TableHead className="h-14 font-black text-[10px] text-slate-900 uppercase tracking-[0.2em] pl-10 border-r-2 border-slate-900">NISN & Profil</TableHead>
+                    <TableHead className="h-14 font-black text-[10px] text-slate-900 uppercase tracking-[0.2em] border-r-2 border-slate-900">Informasi Kelahiran</TableHead>
+                    <TableHead className="h-14 font-black text-[10px] text-slate-900 uppercase tracking-[0.2em] border-r-2 border-slate-900">Kontak & Orang Tua</TableHead>
+                    {(isAdmin || isTeacher || isKepalaSekolah) && (
+                      <TableHead className="h-14 text-right font-black text-[10px] text-slate-900 uppercase tracking-[0.2em] pr-10">Kontrol</TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loadingStudents ? (
-                    <TableRow>
-                      <TableCell colSpan={canManage ? 5 : 4} className="text-center py-8">Memuat...</TableCell>
-                    </TableRow>
+                    Array(4).fill(0).map((_, i) => (
+                      <TableRow key={i} className="border-b-2 border-slate-100">
+                        <TableCell className="pl-10 py-8 border-r-2 border-slate-50"><div className="h-10 w-48 bg-slate-50 rounded-xl animate-pulse" /></TableCell>
+                        <TableCell className="border-r-2 border-slate-50"><div className="h-10 w-32 bg-slate-50 rounded-xl animate-pulse" /></TableCell>
+                        <TableCell className="border-r-2 border-slate-50"><div className="h-10 w-40 bg-slate-50 rounded-xl animate-pulse" /></TableCell>
+                        <TableCell className="pr-10"><div className="h-10 w-24 bg-slate-50 rounded-xl float-right animate-pulse" /></TableCell>
+                      </TableRow>
+                    ))
                   ) : students.length > 0 ? (
-                    students.map(student => (
-                      <TableRow key={student.id} className="hover:bg-slate-50/50">
-                        <TableCell className="font-mono text-[10px] md:text-xs text-slate-500 font-medium">{student.nisn || "-"}</TableCell>
-                        <TableCell className="font-bold text-slate-800 text-xs md:text-sm">
-                          {student.full_name}
-                          <div className="text-[9px] md:text-[10px] text-slate-400 font-normal">{student.phone || "No HP -"}</div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-[10px] md:text-xs text-slate-600">
-                            {student.pob || "-"}, {student.dob || "-"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5 text-[10px] md:text-xs text-slate-500 font-medium">
-                              <MapPin size={12} className="text-slate-400 shrink-0" />
-                              <span className="truncate max-w-[100px] md:max-w-none">{student.origin || "-"}</span>
+                    students.map((student, idx) => (
+                      <TableRow key={student.id} className="group hover:bg-blue-50/30 transition-colors border-b-2 border-slate-900 last:border-b-0">
+                        <TableCell className="pl-10 py-6 border-r-2 border-slate-900">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                              <span className="font-black text-xs">{idx + 1}</span>
                             </div>
-                            <div className="text-[9px] md:text-[10px] text-slate-400">Ortu: {student.parent_name || "-"}</div>
+                            <div className="flex flex-col">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">NISN: {student.nisn || "-"}</span>
+                              <span className="text-sm font-black text-slate-900 uppercase tracking-tight group-hover:text-blue-600 transition-colors">{student.full_name}</span>
+                            </div>
                           </div>
                         </TableCell>
-                        {canManage && (
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <button 
+                        <TableCell className="border-r-2 border-slate-900">
+                          <div className="flex flex-col gap-1">
+                             <div className="flex items-center gap-2">
+                               <MapPin size={12} className="text-blue-500" />
+                               <span className="text-xs font-black text-slate-700 uppercase tracking-tight">{student.pob || "Sidoarjo"}</span>
+                             </div>
+                             <span className="text-[10px] font-bold text-slate-400 pl-5 uppercase">{student.dob || "-"}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="border-r-2 border-slate-900">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex flex-col">
+                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Wali Murid</span>
+                              <span className="text-xs font-black text-slate-800 uppercase tracking-tight truncate max-w-[150px]">{student.parent_name || "-"}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="px-2 py-0.5 rounded-lg bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest">
+                                {student.phone || "No HP -"}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        {(isAdmin || isTeacher || isKepalaSekolah) && (
+                          <TableCell className="text-right pr-10">
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
                                 onClick={() => { 
                                   setSelectedStudent(student); 
                                   setStudentFormData({ 
@@ -803,16 +941,18 @@ export default function Kelas() {
                                   }); 
                                   setIsAddStudentOpen(true); 
                                 }} 
-                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                className="w-10 h-10 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all"
                               >
-                                <Edit2 size={14} />
-                              </button>
-                              <button 
+                                <Edit2 size={16} />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
                                 onClick={() => handleDeleteStudent(student.id)} 
-                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                className="w-10 h-10 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition-all"
                               >
-                                <Trash2 size={14} />
-                              </button>
+                                <Trash2 size={16} />
+                              </Button>
                             </div>
                           </TableCell>
                         )}
@@ -820,13 +960,26 @@ export default function Kelas() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={canManage ? 5 : 4} className="text-center py-12 text-slate-400 italic text-xs">
-                        Belum ada data murid di kelas ini
+                      <TableCell colSpan={(isAdmin || isTeacher || isKepalaSekolah) ? 4 : 3} className="text-center py-20 bg-slate-50/50">
+                        <div className="flex flex-col items-center justify-center max-w-xs mx-auto">
+                          <div className="w-16 h-16 rounded-3xl bg-white flex items-center justify-center text-slate-200 mb-4 border border-slate-100">
+                             <Users size={32} />
+                          </div>
+                          <p className="text-slate-900 font-black uppercase tracking-tight text-sm">Belum Ada Murid</p>
+                          <p className="text-xs font-medium text-slate-500 mt-1 leading-relaxed">
+                            Database kelas ini masih kosong. Silakan daftarkan murid baru terlebih dahulu.
+                          </p>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
+            </div>
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-center">
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                 Data Akademik SDN 1 Dukuhwaluh • Terakhir Diperbarui {new Date().toLocaleDateString('id-ID')}
+               </p>
             </div>
           </div>
         </DialogContent>
@@ -834,75 +987,108 @@ export default function Kelas() {
 
       {/* Add Student Dialog */}
       <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{selectedStudent ? "Edit Murid" : "Tambah Murid Baru"}</DialogTitle>
-            <DialogDescription>Mengisi data murid untuk kelas {selectedKelas?.name}</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSaveStudent} className="space-y-4 pt-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Nama Lengkap</Label>
+        <DialogContent className="sm:max-w-[480px] p-0 border-none shadow-2xl rounded-[32px] overflow-hidden">
+          <div className="bg-blue-600 p-8 text-white relative">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+            <DialogHeader className="relative z-10">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <User size={20} />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-black uppercase tracking-tight">
+                    {selectedStudent ? "Perbarui Data Murid" : "Pendaftaran Murid"}
+                  </DialogTitle>
+                  <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest leading-none mt-1">
+                    Kelas {selectedKelas?.name} • Administrasi Siswa
+                  </p>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+          
+          <form onSubmit={handleSaveStudent} className="p-8 space-y-6 bg-white">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Lengkap Murid</Label>
                 <Input 
-                  placeholder="Nama murid" 
+                  placeholder="Contoh: Ahmad Subardjo" 
                   value={studentFormData.full_name}
                   onChange={(e) => setStudentFormData({ ...studentFormData, full_name: e.target.value })}
                   required 
+                  className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
                 />
               </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">NISN</Label>
+                  <Input 
+                    placeholder="Wajib 10 digit" 
+                    value={studentFormData.nisn}
+                    onChange={(e) => setStudentFormData({ ...studentFormData, nisn: e.target.value })}
+                    className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">No. HP Orang Tua</Label>
+                  <Input 
+                    placeholder="0812..." 
+                    value={studentFormData.phone}
+                    onChange={(e) => setStudentFormData({ ...studentFormData, phone: e.target.value })}
+                    className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tempat Lahir</Label>
+                  <Input 
+                    placeholder="Banyumas" 
+                    value={studentFormData.pob}
+                    onChange={(e) => setStudentFormData({ ...studentFormData, pob: e.target.value })}
+                    className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Lahir</Label>
+                  <Input 
+                    type="date"
+                    value={studentFormData.dob}
+                    onChange={(e) => setStudentFormData({ ...studentFormData, dob: e.target.value })}
+                    className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label>NISN</Label>
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Orang Tua / Wali</Label>
                 <Input 
-                  placeholder="Nomor NISN" 
-                  value={studentFormData.nisn}
-                  onChange={(e) => setStudentFormData({ ...studentFormData, nisn: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>No. HP (WhatsApp)</Label>
-                <Input 
-                  placeholder="Contoh: 0812..." 
-                  value={studentFormData.phone}
-                  onChange={(e) => setStudentFormData({ ...studentFormData, phone: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Tempat Lahir</Label>
-                <Input 
-                  placeholder="Contoh: Banyumas" 
-                  value={studentFormData.pob}
-                  onChange={(e) => setStudentFormData({ ...studentFormData, pob: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Tanggal Lahir</Label>
-                <Input 
-                  type="date"
-                  value={studentFormData.dob}
-                  onChange={(e) => setStudentFormData({ ...studentFormData, dob: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Nama Orang Tua / Wali</Label>
-                <Input 
-                  placeholder="Nama Ayah / Ibu" 
+                  placeholder="Nama Ayah atau Ibu" 
                   value={studentFormData.parent_name}
                   onChange={(e) => setStudentFormData({ ...studentFormData, parent_name: e.target.value })}
+                  className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
                 />
               </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Alamat Lengkap</Label>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Alamat Tinggal</Label>
                 <Input 
-                  placeholder="Contoh: Desa Dukuhwaluh RT 01 RW 02" 
+                  placeholder="Dukuhwaluh RT 01 RW 01" 
                   value={studentFormData.origin}
                   onChange={(e) => setStudentFormData({ ...studentFormData, origin: e.target.value })}
+                  className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
                 />
               </div>
             </div>
-            <DialogFooter className="mt-6">
-              <Button type="button" variant="ghost" onClick={() => setIsAddStudentOpen(false)}>Batal</Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700 font-bold" disabled={loadingStudents}>
-                {loadingStudents ? "Menyimpan..." : "Simpan Murid"}
+
+            <DialogFooter className="gap-3 pt-4">
+              <Button type="button" variant="ghost" onClick={() => setIsAddStudentOpen(false)} className="h-12 rounded-xl font-bold text-slate-400">
+                Batal
+              </Button>
+              <Button type="submit" className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-100 transition-all flex-1" disabled={loadingStudents}>
+                {loadingStudents ? "Proses..." : (selectedStudent ? "Simpan Perubahan" : "Konfirm Pendaftaran")}
               </Button>
             </DialogFooter>
           </form>
