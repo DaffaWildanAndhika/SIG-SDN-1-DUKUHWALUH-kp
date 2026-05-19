@@ -11,11 +11,17 @@ import {
   LogOut, 
   Menu, 
   X,
-  GraduationCap
+  GraduationCap,
+  Lock,
+  Key
 } from "lucide-react";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import { supabase } from "./lib/supabase";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./components/ui/dialog";
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
+import { Label } from "./components/ui/label";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -23,7 +29,7 @@ import GuruList from "./pages/GuruList";
 import JadwalPiket from "./pages/JadwalPiket";
 import JadwalMengajar from "./pages/JadwalMengajar";
 import Kelas from "./pages/Kelas";
-import Pengumuman from "./pages/Pengumuman";
+import Agenda from "./pages/Agenda";
 import NilaiSiswa from "./pages/NilaiSiswa";
 import Login from "./pages/Login";
 
@@ -56,10 +62,31 @@ const SidebarItem = ({ to, icon: Icon, label, active, collapsed }: { to: string,
   </Link>
 );
 
+const SidebarActionItem = ({ icon: Icon, label, onClick, collapsed }: { icon: any, label: string, onClick: () => void, collapsed: boolean }) => (
+  <button onClick={onClick} className="w-full text-left group appearance-none border-none bg-transparent p-0">
+    <motion.div 
+      whileHover={{ x: collapsed ? 0 : 4 }}
+      whileTap={{ scale: 0.98 }}
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 relative text-slate-400 hover:bg-slate-800/50 hover:text-slate-100 cursor-pointer`}
+    >
+      <Icon size={20} className={`shrink-0 transition-colors duration-300 text-slate-500 group-hover:text-slate-300`} />
+      {!collapsed && (
+        <span className="text-sm font-bold tracking-tight">
+          {label}
+        </span>
+      )}
+    </motion.div>
+  </button>
+);
+
 const Layout = ({ user, children }: { user: any, children: React.ReactNode }) => {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dbRole, setDbRole] = useState<string>("");
+  const [isUpdatePasswordOpen, setIsUpdatePasswordOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [updateLoading, setUpdateLoading] = useState(false);
   const location = useLocation();
   
   useEffect(() => {
@@ -82,10 +109,36 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
   const userRole = dbRole || user?.user_metadata?.role || "guru";
   const isSpecialAdmin = user?.email === "admin@sekolah.is" || user?.email === "admin@sekolah.id";
   const isAdmin = userRole === "admin" || isSpecialAdmin;
-  const isGuru = userRole === "guru" || isAdmin;
+  const isKepalaSekolah = userRole === "kepala_sekolah";
+  // isGuru is anyone who has teaching/management privileges (Guru, Kepala Sekolah, Admin)
+  const isGuru = userRole === "guru" || isKepalaSekolah || isAdmin;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      return toast.error("Kata sandi tidak cocok.");
+    }
+    if (newPassword.length < 6) {
+      return toast.error("Kata sandi minimal 6 karakter.");
+    }
+
+    setUpdateLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success("Kata sandi berhasil diperbarui!");
+      setIsUpdatePasswordOpen(false);
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      toast.error(error.message || "Gagal memperbarui kata sandi.");
+    } finally {
+      setUpdateLoading(false);
+    }
   };
 
   const getBreadcrumb = () => {
@@ -95,7 +148,7 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
     if (path === "/piket") return "Jadwal Piket Guru";
     if (path === "/mengajar") return "Jadwal Kegiatan Belajar";
     if (path === "/kelas") return "Manajemen Kelas";
-    if (path === "/pengumuman") return "Pusat Pengumuman";
+    if (path === "/pengumuman") return "Agenda Kegiatan";
     if (path === "/nilai") return "Input Nilai Siswa";
     return "Halaman";
   };
@@ -224,19 +277,33 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
               </p>
               <SidebarItem 
                 to="/pengumuman" 
-                icon={Bell} 
-                label="Pengumuman" 
+                icon={Calendar} 
+                label="Agenda" 
                 active={location.pathname === "/pengumuman"} 
                 collapsed={!isSidebarOpen && !isMobileMenuOpen} 
               />
+              {userRole === "guru" && (
+                <SidebarActionItem
+                  icon={Lock}
+                  label="Ubah Password"
+                  onClick={() => setIsUpdatePasswordOpen(true)}
+                  collapsed={!isSidebarOpen && !isMobileMenuOpen}
+                />
+              )}
             </div>
           </nav>
 
           {/* User Profile Hook */}
           <div className={`mt-auto pt-6 border-t border-slate-800/40 px-2 ${!isSidebarOpen ? 'flex justify-center' : ''}`}>
-            <div className={`flex items-center gap-3 p-3 rounded-2xl bg-slate-900/50 border border-slate-800/40 group hover:border-slate-700 transition-all cursor-pointer`}>
-              <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 shrink-0 flex items-center justify-center text-xs text-blue-400 font-black shadow-inner">
-                {user?.user_metadata?.full_name?.charAt(0) || "A"}
+            <div 
+              onClick={() => setIsUpdatePasswordOpen(true)}
+              className={`flex items-center gap-3 p-3 rounded-2xl bg-slate-900/50 border border-slate-800/40 group hover:border-blue-500/50 transition-all cursor-pointer`}
+            >
+              <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 shrink-0 flex items-center justify-center text-xs text-blue-400 font-black shadow-inner relative overflow-hidden group-hover:bg-blue-600/30">
+                <Settings size={16} className="absolute inset-0 m-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                <span className="group-hover:opacity-0 transition-opacity">
+                  {user?.user_metadata?.full_name?.charAt(0) || "A"}
+                </span>
               </div>
               {(isSidebarOpen || isMobileMenuOpen) && (
                 <div className="overflow-hidden flex-1">
@@ -291,6 +358,75 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
            </AnimatePresence>
         </div>
       </main>
+
+      {/* Change Password Modal */}
+      <Dialog open={isUpdatePasswordOpen} onOpenChange={setIsUpdatePasswordOpen}>
+        <DialogContent className="sm:max-w-[400px] rounded-[32px] border-none shadow-2xl overflow-hidden p-0">
+          <div className="h-2 bg-blue-600 w-full" />
+          <div className="p-8">
+            <DialogHeader className="mb-6">
+              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 mb-4">
+                <Lock size={24} />
+              </div>
+              <DialogTitle className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Ganti Password</DialogTitle>
+              <DialogDescription className="text-slate-500 font-medium">
+                Silakan tentukan kata sandi baru untuk akun Anda.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Password Baru</Label>
+                <div className="relative">
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <Input 
+                    type="password" 
+                    placeholder="Minimal 6 karakter"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="h-12 pl-12 bg-slate-50 border-none rounded-2xl font-bold text-slate-600 focus-visible:ring-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Konfirmasi Password</Label>
+                <div className="relative">
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <Input 
+                    type="password" 
+                    placeholder="Ulangi password baru"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="h-12 pl-12 bg-slate-50 border-none rounded-2xl font-bold text-slate-600 focus-visible:ring-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <DialogFooter className="pt-6 flex-col sm:flex-row gap-3">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => setIsUpdatePasswordOpen(false)}
+                  className="h-12 rounded-2xl font-bold text-slate-500 hover:bg-slate-100"
+                >
+                  Batal
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={updateLoading}
+                  className="h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 shadow-lg shadow-blue-200"
+                >
+                  {updateLoading ? "Menyimpan..." : "Simpan Password"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Toaster position="top-right" richColors />
     </div>
   );
@@ -362,7 +498,7 @@ export default function App() {
                 <Route path="/piket" element={<JadwalPiket />} />
                 <Route path="/mengajar" element={<JadwalMengajar />} />
                 <Route path="/kelas" element={<Kelas />} />
-                <Route path="/pengumuman" element={<Pengumuman />} />
+                <Route path="/pengumuman" element={<Agenda />} />
                 <Route path="/nilai" element={<NilaiSiswa />} />
               </Routes>
             </Layout>

@@ -62,6 +62,8 @@ import autoTable from "jspdf-autotable";
 export default function GuruList() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string>("guru");
   const [canManage, setCanManage] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -76,7 +78,9 @@ export default function GuruList() {
     subject: "",
     phone: "",
     is_active: true,
-    address: ""
+    address: "",
+    email: "",
+    password: ""
   });
 
   useEffect(() => {
@@ -87,9 +91,20 @@ export default function GuruList() {
   const checkUserRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const role = user.user_metadata?.role;
+      setCurrentUser(user);
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+        
+      const role = profile?.role || user.user_metadata?.role || "guru";
+      setUserRole(role);
+      
       const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
-      setCanManage(role === "admin" || isSpecialAdmin);
+      const isAdmin = role === "admin" || isSpecialAdmin;
+      setCanManage(isAdmin);
     }
   };
 
@@ -102,7 +117,9 @@ export default function GuruList() {
         subject: selectedGuru.subject || "",
         phone: selectedGuru.phone || "",
         is_active: selectedGuru.is_active ?? true,
-        address: selectedGuru.address || ""
+        address: selectedGuru.address || "",
+        email: selectedGuru.email || "",
+        password: "" // Don't show password on edit
       });
     } else {
       setFormData({
@@ -112,7 +129,9 @@ export default function GuruList() {
         subject: "",
         phone: "",
         is_active: true,
-        address: ""
+        address: "",
+        email: "",
+        password: ""
       });
     }
   }, [selectedGuru, isDialogOpen]);
@@ -156,32 +175,51 @@ export default function GuruList() {
     setLoading(true);
     try {
       if (selectedGuru) {
+        // Update existing guru (only profile data)
+        const updateData = { ...formData };
+        delete (updateData as any).password;
+        
         const { error } = await supabase
           .from('profiles')
-          .update(formData)
+          .update(updateData)
           .eq('id', selectedGuru.id);
         if (error) throw error;
         toast.success("Data guru berhasil diperbarui");
       } else {
-        const insertData: any = {
-          ...formData,
-          role: 'guru'
-        };
-        
-        const newId = window.crypto?.randomUUID?.();
-        if (newId) insertData.id = newId;
+        // Create new guru via Admin API
+        const response = await fetch("/api/admin/create-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            full_name: formData.full_name,
+            role: "guru"
+          })
+        });
 
-        const { error } = await supabase
-          .from('profiles')
-          .insert([insertData]);
+        const result = await response.json();
         
-        if (error) {
-          if (error.message?.includes("foreign key constraint")) {
-            throw new Error("Gagal: Tabel 'profiles' terhubung ketat dengan Auth Users.");
-          }
-          throw error;
+        if (!response.ok) {
+          throw new Error(result.error || "Gagal membuat akun guru");
         }
-        toast.success("Guru baru berhasil ditambahkan");
+
+        // Update profile with remaining fields since Admin API might only do basic insert
+        const { error: patchError } = await supabase
+          .from('profiles')
+          .update({
+            nip: formData.nip,
+            gender: formData.gender,
+            subject: formData.subject,
+            phone: formData.phone,
+            address: formData.address,
+            is_active: formData.is_active
+          })
+          .eq('id', result.user.id);
+          
+        if (patchError) console.warn("Note: Profile patch failed", patchError.message);
+
+        toast.success("Akun guru berhasil didaftarkan");
       }
       setIsDialogOpen(false);
       fetchData();
@@ -452,8 +490,8 @@ export default function GuruList() {
                         )}
                       </TableCell>
                       <TableCell className="text-right pr-8">
-                        {canManage && (
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {(canManage || currentUser?.id === guru.id) && (
+                          <div className="flex justify-end gap-2">
                             <Button 
                               variant="ghost" 
                               size="icon" 
@@ -462,14 +500,16 @@ export default function GuruList() {
                             >
                               <Edit2 size={16} />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => handleDelete(guru.id)} 
-                              className="h-10 w-10 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
-                            >
-                              <Trash2 size={16} />
-                            </Button>
+                            {canManage && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleDelete(guru.id)} 
+                                className="h-10 w-10 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            )}
                           </div>
                         )}
                       </TableCell>
@@ -557,6 +597,34 @@ export default function GuruList() {
                       onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
                     />
                   </div>
+
+                  {!selectedGuru && (
+                    <>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email Login</Label>
+                        <Input 
+                          type="email"
+                          placeholder="guru@sekolah.id" 
+                          className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl" 
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Password Akun</Label>
+                        <Input 
+                          type="password"
+                          placeholder="Minimal 6 karakter..." 
+                          className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl" 
+                          value={formData.password}
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                          required
+                        />
+                      </div>
+                    </>
+                  )}
+
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Jenis Kelamin</Label>
                     <Select 

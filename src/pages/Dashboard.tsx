@@ -76,7 +76,7 @@ export default function Dashboard() {
     totalMurid: 0,
     totalKelas: 0,
   });
-  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [agendas, setAgendas] = useState<any[]>([]);
   const [piketToday, setPiketToday] = useState<any[]>([]);
   const [gradeData, setGradeData] = useState<any[]>([]);
 
@@ -90,32 +90,75 @@ export default function Dashboard() {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUser(user);
 
+      let currentRole = "guru";
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', user.id)
           .single();
-        setUserRole(profile?.role || user.user_metadata?.role || "guru");
+        currentRole = profile?.role || user.user_metadata?.role || "guru";
+        setUserRole(currentRole);
       }
+
+      const isSpecialAdmin = user?.email === "admin@sekolah.is" || user?.email === "admin@sekolah.id";
+      const isAdminRole = currentRole === "admin" || isSpecialAdmin;
 
       const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
       const todayIndo = days[new Date().getDay()];
+      const todayIso = new Date().toISOString().split('T')[0];
+
+      // Define queries
+      let studentQuery = supabase.from('students').select('*', { count: 'exact', head: true });
+      let kelasQuery = supabase.from('classes').select('*', { count: 'exact', head: true });
+      let gradesQuery = supabase.from('student_grades').select('subject, average_score');
+
+      if (!isAdminRole && user) {
+        // Teacher context: Find classes assigned to this teacher
+        const { data: teacherClasses } = await supabase
+          .from('classes')
+          .select('id')
+          .eq('wali_kelas_id', user.id);
+        
+        const classIds = teacherClasses?.map(c => c.id) || [];
+        
+        if (classIds.length > 0) {
+          studentQuery = studentQuery.in('class_id', classIds);
+          kelasQuery = kelasQuery.eq('wali_kelas_id', user.id);
+          
+          // Get students in these classes to filter grades
+          const { data: classStudents } = await supabase
+            .from('students')
+            .select('id')
+            .in('class_id', classIds);
+          const studentIds = classStudents?.map(s => s.id) || [];
+          
+          if (studentIds.length > 0) {
+            gradesQuery = gradesQuery.in('student_id', studentIds);
+          } else {
+            gradesQuery = supabase.from('student_grades').select('subject, average_score').eq('id', '00000000-0000-0000-0000-000000000000');
+          }
+        } else {
+          studentQuery = supabase.from('students').select('*', { count: 'exact', head: true }).eq('id', '00000000-0000-0000-0000-000000000000');
+          kelasQuery = supabase.from('classes').select('*', { count: 'exact', head: true }).eq('id', '00000000-0000-0000-0000-000000000000');
+          gradesQuery = supabase.from('student_grades').select('subject, average_score').eq('id', '00000000-0000-0000-0000-000000000000');
+        }
+      }
 
       const [
         { count: guruCount },
         { count: studentCount },
         { count: kelasCount },
-        { data: announcementData },
+        { data: agendaData },
         { data: piketData },
         { data: gradesData }
       ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'guru'),
-        supabase.from('students').select('*', { count: 'exact', head: true }),
-        supabase.from('classes').select('*', { count: 'exact', head: true }),
-        supabase.from('announcements').select('*').eq('is_published', true).order('created_at', { ascending: false }).limit(4),
+        studentQuery,
+        kelasQuery,
+        supabase.from('agendas').select('*').gte('event_date', todayIso).order('event_date', { ascending: true }).limit(4),
         supabase.from('picket_schedules').select('*, guru:profiles(full_name)').eq('day', todayIndo),
-        supabase.from('student_grades').select('subject, average_score')
+        gradesQuery
       ]);
 
       setStats({
@@ -153,7 +196,7 @@ export default function Dashboard() {
         ]);
       }
 
-      setAnnouncements(announcementData || []);
+      setAgendas(agendaData || []);
       setPiketToday(piketData || []);
     } catch (error: any) {
       console.error("Error fetching dashboard data:", error.message);
@@ -289,36 +332,31 @@ export default function Dashboard() {
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
             <h3 className="text-lg font-bold text-white mb-4 relative z-10">Aksi Cepat</h3>
             <div className="grid grid-cols-2 gap-3 relative z-10">
-              {isAdmin ? (
+              <Link to="/nilai" className="flex flex-col items-center justify-center p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white gap-2">
+                <FileText size={20} />
+                <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Nilai Siswa</span>
+              </Link>
+              {isAdmin && (
                 <Link to="/guru" className="flex flex-col items-center justify-center p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white gap-2">
                   <PlusCircle size={20} />
                   <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Tambah Guru</span>
                 </Link>
-              ) : (
-                <Link to="/nilai" className="flex flex-col items-center justify-center p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white gap-2">
-                  <FileText size={20} />
-                  <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Nilai Siswa</span>
-                </Link>
               )}
               <Link to="/pengumuman" className="flex flex-col items-center justify-center p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white gap-2">
-                <Bell size={20} />
-                <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Pengumuman</span>
+                <Calendar size={20} />
+                <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Agenda</span>
               </Link>
               <Link to="/mengajar" className="flex flex-col items-center justify-center p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white gap-2">
                 <BookOpen size={20} />
                 <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Jadwal</span>
               </Link>
-              <Link to="/kelas" className="flex flex-col items-center justify-center p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-white gap-2">
-                <School size={20} />
-                <span className="text-[10px] font-bold uppercase tracking-tighter text-center">Data Kelas</span>
-              </Link>
             </div>
           </Card>
 
-          {/* Announcements Section */}
+          {/* Agenda Section */}
           <Card className="flex-1 bg-white rounded-2xl border border-slate-100 p-6 shadow-sm flex flex-col hover:shadow-md transition-all text-left">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-bold text-slate-900 tracking-tight">Pengumuman</h3>
+              <h3 className="text-lg font-bold text-slate-900 tracking-tight">Agenda Sekolah</h3>
               <Link to="/pengumuman">
                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-slate-50 text-slate-400">
                   <ChevronRight size={18} />
@@ -326,22 +364,24 @@ export default function Dashboard() {
               </Link>
             </div>
             <div className="space-y-4 flex-1">
-              {announcements.length > 0 ? announcements.map((ann, i) => (
-                <div key={ann.id} className="group cursor-pointer">
+              {agendas.length > 0 ? agendas.map((ag, i) => (
+                <div key={ag.id} className="group cursor-pointer">
                   <div className="flex items-start gap-3">
                     <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${i === 0 ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
                     <div>
-                      <p className="text-xs font-bold text-slate-800 leading-tight group-hover:text-blue-600 transition-colors line-clamp-2 uppercase tracking-tight">{ann.title}</p>
+                      <p className="text-xs font-bold text-slate-800 leading-tight group-hover:text-blue-600 transition-colors line-clamp-2 uppercase tracking-tight">{ag.title}</p>
                       <p className="text-[10px] font-medium text-slate-400 mt-1 flex items-center gap-1">
-                         <Clock size={10} /> {new Date(ann.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                         <Calendar size={10} /> {new Date(ag.event_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                         <span className="text-slate-300 mx-1">•</span>
+                         <Clock size={10} /> {ag.start_time?.slice(0, 5)}
                       </p>
                     </div>
                   </div>
                 </div>
               )) : (
                 <div className="flex flex-col items-center justify-center py-8 text-slate-300">
-                  <Bell size={32} strokeWidth={1.5} />
-                  <p className="text-[10px] font-bold uppercase mt-2 italic tracking-widest text-slate-300">Kosong</p>
+                  <Calendar size={32} strokeWidth={1.5} />
+                  <p className="text-[10px] font-bold uppercase mt-2 italic tracking-widest text-slate-300">Belum Ada Agenda</p>
                 </div>
               )}
             </div>
@@ -393,24 +433,24 @@ export default function Dashboard() {
                <School size={48} className="text-white" />
             </div>
             <div className="text-center md:text-left">
-              <h3 className="text-2xl font-black tracking-tight mb-2 uppercase">Status Sistem</h3>
+              <h3 className="text-2xl font-black tracking-tight mb-2 uppercase">Profil Sekolah</h3>
               <p className="text-slate-400 text-sm font-medium leading-relaxed mb-6">
-                SIA Guru SDN 1 Dukuhwaluh berjalan dengan optimal. Semua data telah tersinkronisasi.
+                Terwujudnya peserta didik yang bertaqwa, cerdas, terampil, mandiri dan berwawasan lingkungan.
               </p>
               <div className="flex flex-wrap justify-center md:justify-start gap-4">
                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-tight">Uptime</span>
-                    <span className="text-xl font-black">99.9%</span>
+                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-tight">Akreditasi</span>
+                    <span className="text-xl font-black">A</span>
                  </div>
                  <div className="w-[1px] h-10 bg-white/10 hidden sm:block"></div>
                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest leading-tight">Latency</span>
-                    <span className="text-xl font-black">24ms</span>
+                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest leading-tight">NPSN</span>
+                    <span className="text-xl font-black">20302367</span>
                  </div>
                  <div className="w-[1px] h-10 bg-white/10 hidden sm:block"></div>
                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest leading-tight">Backup</span>
-                    <span className="text-xl font-black">Daily</span>
+                    <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest leading-tight">Kurikulum</span>
+                    <span className="text-xl font-black">Merdeka</span>
                  </div>
               </div>
             </div>

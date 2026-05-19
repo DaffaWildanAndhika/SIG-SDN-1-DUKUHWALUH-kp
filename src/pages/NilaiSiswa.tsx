@@ -80,10 +80,26 @@ export default function NilaiSiswa() {
 
   const fetchClasses = async () => {
     try {
-      const { data, error } = await supabase
-        .from('classes')
-        .select('*')
-        .order('name');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      const role = profile?.role || user.user_metadata?.role || "guru";
+      const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
+      const isAdminRole = role === "admin" || isSpecialAdmin;
+
+      let query = supabase.from('classes').select('*').order('name');
+      
+      if (!isAdminRole) {
+        query = query.eq('wali_kelas_id', user.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       setClassList(data || []);
       
@@ -92,7 +108,12 @@ export default function NilaiSiswa() {
       const paramSubject = searchParams.get("subject");
       
       if (paramClassId) {
-        setSelectedClassId(paramClassId);
+        // Only set if the class is actually in the visible list for this user
+        if (!data?.find(c => c.id === paramClassId)) {
+          if (data && data.length > 0) setSelectedClassId(data[0].id);
+        } else {
+          setSelectedClassId(paramClassId);
+        }
       } else if (data && data.length > 0) {
         setSelectedClassId(data[0].id);
       }

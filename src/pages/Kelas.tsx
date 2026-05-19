@@ -52,13 +52,21 @@ export default function Kelas() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [studentFormData, setStudentFormData] = useState({
     full_name: "",
+    nis: "",
     nisn: "",
     pob: "",
     dob: "",
     origin: "",
     parent_name: "",
-    phone: ""
+    phone: "",
+    status: "Aktif"
   });
+
+  // Filter & Search State
+  const [searchClassesQuery, setSearchClassesQuery] = useState("");
+  const [academicYearFilter, setAcademicYearFilter] = useState("all");
+  const [searchStudentsQuery, setSearchStudentsQuery] = useState("");
+  const [studentStatusFilter, setStudentStatusFilter] = useState("all");
 
   // Form State
   const [formData, setFormData] = useState({
@@ -120,9 +128,28 @@ export default function Kelas() {
   const fetchClasses = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      const role = profile?.role || user.user_metadata?.role || "guru";
+      const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
+      const isAdminRole = role === "admin" || isSpecialAdmin;
+
+      let query = supabase
         .from('classes')
         .select('*, wali:profiles(full_name), student_count:students(count)');
+      
+      if (!isAdminRole) {
+        query = query.eq('wali_kelas_id', user.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       setClasses(data || []);
     } catch (error: any) {
@@ -243,6 +270,23 @@ export default function Kelas() {
       }
     }
   };
+
+  const activeAcademicYears = Array.from(new Set(classes.map(c => c.academic_year))).sort().reverse();
+
+  const filteredClasses = classes.filter(cls => {
+    const matchesSearch = cls.name.toLowerCase().includes(searchClassesQuery.toLowerCase()) || 
+                         (cls.wali?.full_name || "").toLowerCase().includes(searchClassesQuery.toLowerCase());
+    const matchesYear = academicYearFilter === "all" || cls.academic_year === academicYearFilter;
+    return matchesSearch && matchesYear;
+  });
+
+  const filteredStudents = students.filter(s => {
+    const matchesSearch = s.full_name.toLowerCase().includes(searchStudentsQuery.toLowerCase()) ||
+                         (s.nisn || "").includes(searchStudentsQuery) ||
+                         (s.nis || "").includes(searchStudentsQuery);
+    const matchesStatus = studentStatusFilter === "all" || s.status === studentStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const applyOfficialExcelStyle = (ws: any, columns: string[]) => {
     // Merge cells for header (already populated in aoa_to_sheet)
@@ -597,13 +641,40 @@ export default function Kelas() {
         </div>
       </div>
 
+      {/* Search & Filter Section */}
+      <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <Input 
+            placeholder="Cari kelas atau wali kelas..." 
+            value={searchClassesQuery}
+            onChange={(e) => setSearchClassesQuery(e.target.value)}
+            className="h-12 pl-12 bg-slate-50 border-none rounded-2xl font-bold text-slate-600 focus-visible:ring-blue-500"
+          />
+        </div>
+        <Select value={academicYearFilter} onValueChange={setAcademicYearFilter}>
+          <SelectTrigger className="h-12 w-full md:w-[220px] bg-slate-50 border-none rounded-2xl font-bold text-slate-600 px-4">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 capitalize whitespace-nowrap">Tahun:</span>
+              <SelectValue placeholder="Pilih Tahun" />
+            </div>
+          </SelectTrigger>
+          <SelectContent className="rounded-2xl border-slate-100 shadow-xl">
+            <SelectItem value="all" className="font-bold">Semua Tahun</SelectItem>
+            {activeAcademicYears.map(year => (
+              <SelectItem key={year} value={year} className="font-bold">{year}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
           Array(6).fill(0).map((_, i) => (
             <div key={i} className="h-64 bg-white border border-slate-100 rounded-[32px] animate-pulse"></div>
           ))
-        ) : classes.length > 0 ? (
-          classes.map((cls, index) => (
+        ) : filteredClasses.length > 0 ? (
+          filteredClasses.map((cls, index) => (
             <Card key={cls.id} className="border border-slate-100 rounded-[32px] shadow-sm hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-500 overflow-hidden group bg-white relative">
               <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               
@@ -708,72 +779,72 @@ export default function Kelas() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[480px] p-0 border-none shadow-2xl rounded-[32px] overflow-hidden">
-          <div className="bg-slate-900 p-8 text-white relative">
+        <DialogContent className="w-[95vw] sm:max-w-[420px] p-0 border-none shadow-2xl rounded-[32px] overflow-hidden bg-white flex flex-col max-h-[90vh]">
+          <div className="bg-slate-900 p-6 text-white relative shrink-0">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
             <DialogHeader className="relative z-10">
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-3 mb-1">
                 <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
                   <School size={20} />
                 </div>
                 <div>
-                  <DialogTitle className="text-xl font-black uppercase tracking-tight">
-                    {selectedKelas ? "Konfigurasi Kelas" : "Tambah Ruang Kelas"}
+                  <DialogTitle className="text-lg font-black uppercase tracking-tight">
+                    {selectedKelas ? "Edit Kelas" : "Tambah Kelas"}
                   </DialogTitle>
-                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest leading-none mt-1">
-                    Administrasi Kelompok Belajar SDN 1 Dukuhwaluh
+                  <p className="text-slate-400 text-[9px] font-bold uppercase tracking-widest mt-0.5">
+                    Administrasi Kelompok Belajar
                   </p>
                 </div>
               </div>
             </DialogHeader>
           </div>
           
-          <form onSubmit={handleSave} className="p-8 space-y-6 bg-white">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Identitas Kelas</Label>
+          <form onSubmit={handleSave} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-5">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Kelas</Label>
               <Input 
                 placeholder="Contoh: Kelas 1A" 
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required 
-                className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm"
               />
             </div>
             
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Wali Kelas Pengampu</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Wali Kelas</Label>
               <Select 
                 value={formData.wali_kelas_id}
                 onValueChange={(val) => setFormData({ ...formData, wali_kelas_id: val })}
               >
-                <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500">
+                <SelectTrigger className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm">
                   <SelectValue placeholder="Pilih wali kelas" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-slate-100 shadow-xl">
                   {gurus.map(guru => (
-                    <SelectItem key={guru.id} value={guru.id} className="font-bold py-3">{guru.full_name}</SelectItem>
+                    <SelectItem key={guru.id} value={guru.id} className="font-bold py-2 text-xs">{guru.full_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tahun Akademik Aktif</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tahun Ajaran</Label>
               <Input 
                 placeholder="Contoh: 2025/2026" 
                 value={formData.academic_year}
                 onChange={(e) => setFormData({ ...formData, academic_year: e.target.value })}
                 required 
-                className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm"
               />
             </div>
 
-            <DialogFooter className="gap-3 pt-4">
-              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-12 rounded-xl font-bold text-slate-400">
-                Tutup
+            <DialogFooter className="pt-4 gap-2 flex-row sm:justify-end">
+              <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-10 rounded-xl font-bold text-slate-400 text-xs">
+                Batal
               </Button>
-              <Button type="submit" className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-100 transition-all flex-1" disabled={loading}>
-                {loading ? "Menyimpan..." : (selectedKelas ? "Simpan Perubahan" : "Konfirmasi Kelas")}
+              <Button type="submit" className="h-10 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg flex-1 text-xs uppercase" disabled={loading}>
+                {loading ? "..." : (selectedKelas ? "Simpan" : "Tambah")}
               </Button>
             </DialogFooter>
           </form>
@@ -813,7 +884,7 @@ export default function Kelas() {
                   <div className="w-[1px] h-8 bg-white/10"></div>
                   <div className="flex flex-col">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Populasi</span>
-                    <span className="text-sm font-black text-blue-400 uppercase tracking-tight">{students.length} Siswa Aktif</span>
+                    <span className="text-sm font-black text-blue-400 uppercase tracking-tight">{filteredStudents.length} Siswa Sesuai Filter</span>
                   </div>
                 </div>
               </div>
@@ -826,11 +897,11 @@ export default function Kelas() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-[200px] rounded-xl border-slate-100 shadow-2xl p-1">
-                    <DropdownMenuItem onClick={() => exportSpecificClassToExcel(selectedKelas, students)} className="gap-3 py-3 px-4 rounded-lg cursor-pointer">
+                    <DropdownMenuItem onClick={() => exportSpecificClassToExcel(selectedKelas, filteredStudents)} className="gap-3 py-3 px-4 rounded-lg cursor-pointer">
                       <FileSpreadsheet size={16} className="text-emerald-600" /> 
                       <span className="font-bold text-xs uppercase">Excel Spreadsheet</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => exportSpecificClassToPDF(selectedKelas, students)} className="gap-3 py-3 px-4 rounded-lg cursor-pointer">
+                    <DropdownMenuItem onClick={() => exportSpecificClassToPDF(selectedKelas, filteredStudents)} className="gap-3 py-3 px-4 rounded-lg cursor-pointer">
                       <FileText size={16} className="text-red-600" /> 
                       <span className="font-bold text-xs uppercase">PDF Document</span>
                     </DropdownMenuItem>
@@ -845,12 +916,14 @@ export default function Kelas() {
                       setSelectedStudent(null); 
                       setStudentFormData({ 
                         full_name: "", 
+                        nis: "",
                         nisn: "",
                         pob: "",
                         dob: "",
                         origin: "",
                         parent_name: "",
-                        phone: ""
+                        phone: "",
+                        status: "Aktif"
                       }); 
                       setIsAddStudentOpen(true); 
                     }} 
@@ -861,6 +934,30 @@ export default function Kelas() {
                 )}
               </div>
             </div>
+          </div>
+
+          <div className="px-10 py-6 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <Input 
+                placeholder="Cari nama atau NISN murid..." 
+                value={searchStudentsQuery}
+                onChange={(e) => setSearchStudentsQuery(e.target.value)}
+                className="h-10 pl-10 bg-white border-slate-200 rounded-xl font-bold text-sm focus-visible:ring-blue-500"
+              />
+            </div>
+            <Select value={studentStatusFilter} onValueChange={setStudentStatusFilter}>
+              <SelectTrigger className="h-10 w-full md:w-[150px] bg-white border-slate-200 rounded-xl font-bold text-slate-600 px-4 text-xs">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-slate-100 shadow-xl">
+                <SelectItem value="all" className="font-bold">Semua Status</SelectItem>
+                <SelectItem value="Aktif" className="font-bold">Aktif</SelectItem>
+                <SelectItem value="Lulus" className="font-bold">Lulus</SelectItem>
+                <SelectItem value="Pindah" className="font-bold">Pindah</SelectItem>
+                <SelectItem value="Keluar" className="font-bold">Keluar</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="p-0 bg-white">
@@ -886,8 +983,8 @@ export default function Kelas() {
                         <TableCell className="pr-10"><div className="h-10 w-24 bg-slate-50 rounded-xl float-right animate-pulse" /></TableCell>
                       </TableRow>
                     ))
-                  ) : students.length > 0 ? (
-                    students.map((student, idx) => (
+                  ) : filteredStudents.length > 0 ? (
+                    filteredStudents.map((student, idx) => (
                       <TableRow key={student.id} className="group hover:bg-blue-50/30 transition-colors border-b-2 border-slate-900 last:border-b-0">
                         <TableCell className="pl-10 py-6 border-r-2 border-slate-900">
                           <div className="flex items-center gap-4">
@@ -895,7 +992,16 @@ export default function Kelas() {
                               <span className="font-black text-xs">{idx + 1}</span>
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">NISN: {student.nisn || "-"}</span>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">NIS: {student.nis || "-"} • NISN: {student.nisn || "-"}</span>
+                                <Badge className={`text-[8px] font-black px-1.5 py-0 rounded-md ${
+                                  student.status === 'Aktif' ? 'bg-emerald-100 text-emerald-600' :
+                                  student.status === 'Lulus' ? 'bg-blue-100 text-blue-600' :
+                                  'bg-slate-100 text-slate-500'
+                                }`}>
+                                  {student.status || 'Aktif'}
+                                </Badge>
+                              </div>
                               <span className="text-sm font-black text-slate-900 uppercase tracking-tight group-hover:text-blue-600 transition-colors">{student.full_name}</span>
                             </div>
                           </div>
@@ -932,12 +1038,14 @@ export default function Kelas() {
                                   setSelectedStudent(student); 
                                   setStudentFormData({ 
                                     full_name: student.full_name || "", 
+                                    nis: student.nis || "",
                                     nisn: student.nisn || "",
                                     pob: student.pob || "",
                                     dob: student.dob || "",
                                     origin: student.origin || "",
                                     parent_name: student.parent_name || "",
-                                    phone: student.phone || ""
+                                    phone: student.phone || "",
+                                    status: student.status || "Aktif"
                                   }); 
                                   setIsAddStudentOpen(true); 
                                 }} 
@@ -967,7 +1075,7 @@ export default function Kelas() {
                           </div>
                           <p className="text-slate-900 font-black uppercase tracking-tight text-sm">Belum Ada Murid</p>
                           <p className="text-xs font-medium text-slate-500 mt-1 leading-relaxed">
-                            Database kelas ini masih kosong. Silakan daftarkan murid baru terlebih dahulu.
+                            Database kelas ini masih kosong atau tidak ada murid yang sesuai dengan filter.
                           </p>
                         </div>
                       </TableCell>
@@ -978,7 +1086,7 @@ export default function Kelas() {
             </div>
             <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-center">
                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                 Data Akademik SDN 1 Dukuhwaluh • Terakhir Diperbarui {new Date().toLocaleDateString('id-ID')}
+                 Data Akademik SDN 1 Dukuhwaluh • Pencarian Aktif: {searchStudentsQuery || 'Semua'} • Filter: {studentStatusFilter === 'all' ? 'Semua Status' : studentStatusFilter}
                </p>
             </div>
           </div>
@@ -987,108 +1095,136 @@ export default function Kelas() {
 
       {/* Add Student Dialog */}
       <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
-        <DialogContent className="sm:max-w-[480px] p-0 border-none shadow-2xl rounded-[32px] overflow-hidden">
-          <div className="bg-blue-600 p-8 text-white relative">
+        <DialogContent className="w-[95vw] sm:max-w-[450px] p-0 border-none shadow-2xl rounded-[32px] overflow-hidden bg-white flex flex-col max-h-[95vh]">
+          <div className="bg-blue-600 p-6 text-white relative shrink-0">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
             <DialogHeader className="relative z-10">
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-3 mb-1">
                 <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
                   <User size={20} />
                 </div>
                 <div>
-                  <DialogTitle className="text-xl font-black uppercase tracking-tight">
-                    {selectedStudent ? "Perbarui Data Murid" : "Pendaftaran Murid"}
+                  <DialogTitle className="text-lg font-black uppercase tracking-tight">
+                    {selectedStudent ? "Edit Murid" : "Pendaftaran Murid"}
                   </DialogTitle>
-                  <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest leading-none mt-1">
-                    Kelas {selectedKelas?.name} • Administrasi Siswa
+                  <p className="text-blue-100 text-[9px] font-bold uppercase tracking-widest mt-0.5">
+                    Kelas {selectedKelas?.name}
                   </p>
                 </div>
               </div>
             </DialogHeader>
           </div>
           
-          <form onSubmit={handleSaveStudent} className="p-8 space-y-6 bg-white">
+          <form onSubmit={handleSaveStudent} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Lengkap Murid</Label>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Lengkap</Label>
                 <Input 
-                  placeholder="Contoh: Ahmad Subardjo" 
+                  placeholder="Nama Lengkap Siswa" 
                   value={studentFormData.full_name}
                   onChange={(e) => setStudentFormData({ ...studentFormData, full_name: e.target.value })}
                   required 
-                  className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                  className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm"
                 />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">NISN</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">NIS</Label>
                   <Input 
-                    placeholder="Wajib 10 digit" 
-                    value={studentFormData.nisn}
-                    onChange={(e) => setStudentFormData({ ...studentFormData, nisn: e.target.value })}
-                    className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                    placeholder="Nomor Induk" 
+                    value={studentFormData.nis}
+                    onChange={(e) => setStudentFormData({ ...studentFormData, nis: e.target.value })}
+                    className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">No. HP Orang Tua</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">NISN</Label>
                   <Input 
-                    placeholder="0812..." 
-                    value={studentFormData.phone}
-                    onChange={(e) => setStudentFormData({ ...studentFormData, phone: e.target.value })}
-                    className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                    placeholder="10 Digit" 
+                    value={studentFormData.nisn}
+                    onChange={(e) => setStudentFormData({ ...studentFormData, nisn: e.target.value })}
+                    className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm"
                   />
                 </div>
               </div>
 
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">No. HP Orang Tua</Label>
+                <Input 
+                  placeholder="08..." 
+                  value={studentFormData.phone}
+                  onChange={(e) => setStudentFormData({ ...studentFormData, phone: e.target.value })}
+                  className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tempat Lahir</Label>
                   <Input 
                     placeholder="Banyumas" 
                     value={studentFormData.pob}
                     onChange={(e) => setStudentFormData({ ...studentFormData, pob: e.target.value })}
-                    className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                    className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Lahir</Label>
                   <Input 
                     type="date"
                     value={studentFormData.dob}
                     onChange={(e) => setStudentFormData({ ...studentFormData, dob: e.target.value })}
-                    className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                    className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm"
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Orang Tua / Wali</Label>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status Keaktifan</Label>
+                <Select 
+                  value={studentFormData.status}
+                  onValueChange={(val) => setStudentFormData({ ...studentFormData, status: val })}
+                >
+                  <SelectTrigger className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm capitalize">
+                    <SelectValue placeholder="Pilih Status" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-slate-100 shadow-xl">
+                    <SelectItem value="Aktif" className="font-bold">Aktif</SelectItem>
+                    <SelectItem value="Lulus" className="font-bold">Lulus</SelectItem>
+                    <SelectItem value="Pindah" className="font-bold">Pindah</SelectItem>
+                    <SelectItem value="Keluar" className="font-bold">Keluar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Orang Tua/Wali</Label>
                 <Input 
-                  placeholder="Nama Ayah atau Ibu" 
+                  placeholder="Nama Orang Tua" 
                   value={studentFormData.parent_name}
                   onChange={(e) => setStudentFormData({ ...studentFormData, parent_name: e.target.value })}
-                  className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                  className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm"
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Alamat Tinggal</Label>
                 <Input 
-                  placeholder="Dukuhwaluh RT 01 RW 01" 
+                  placeholder="Alamat Lengkap" 
                   value={studentFormData.origin}
                   onChange={(e) => setStudentFormData({ ...studentFormData, origin: e.target.value })}
-                  className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
+                  className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm"
                 />
               </div>
             </div>
 
-            <DialogFooter className="gap-3 pt-4">
-              <Button type="button" variant="ghost" onClick={() => setIsAddStudentOpen(false)} className="h-12 rounded-xl font-bold text-slate-400">
+            <DialogFooter className="pt-2 gap-2 flex-row sm:justify-end">
+              <Button type="button" variant="ghost" onClick={() => setIsAddStudentOpen(false)} className="h-10 rounded-xl font-bold text-slate-400 text-xs">
                 Batal
               </Button>
-              <Button type="submit" className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-100 transition-all flex-1" disabled={loadingStudents}>
-                {loadingStudents ? "Proses..." : (selectedStudent ? "Simpan Perubahan" : "Konfirm Pendaftaran")}
+              <Button type="submit" className="h-10 px-8 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl shadow-lg flex-1 text-xs uppercase" disabled={loadingStudents}>
+                {loadingStudents ? "..." : "Simpan"}
               </Button>
             </DialogFooter>
           </form>

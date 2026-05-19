@@ -18,6 +18,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { 
   Dialog, 
   DialogContent, 
@@ -38,6 +39,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
+import { GraduationCap } from "lucide-react";
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
@@ -52,6 +54,8 @@ export default function JadwalMengajar() {
   const [academicYears, setAcademicYears] = useState<string[]>([]);
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>("all");
+  const [selectedGuruFilter, setSelectedGuruFilter] = useState<string>("all");
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>("");
   const [canManage, setCanManage] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isMaterialDialogOpen, setIsMaterialDialogOpen] = useState(false);
@@ -127,15 +131,22 @@ export default function JadwalMengajar() {
       // Check database profile for most accurate role
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, full_name')
         .eq('id', user.id)
         .single();
       
       const role = profile?.role || user.user_metadata?.role || "guru";
       setUserRole(role);
       const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
+      const isAdminRole = role === "admin" || isSpecialAdmin;
+      
       // Allow manage if admin, special admin, or guru
-      setCanManage(role === "admin" || role === "guru" || isSpecialAdmin);
+      setCanManage(isAdminRole || role === "guru");
+      
+      // If teacher, default filter to self
+      if (role === "guru" && !isAdminRole) {
+        setSelectedGuruFilter(user.id);
+      }
     }
   };
 
@@ -180,6 +191,13 @@ export default function JadwalMengajar() {
         .select('*, guru:profiles(full_name), class:classes!inner(name, academic_year)')
         .eq('classes.academic_year', selectedYear);
 
+      // Role-based filtering
+      const isAdmin = userRole === "admin" || currentUser?.email?.includes("admin@sekolah");
+      
+      if (!isAdmin || selectedGuruFilter !== "all") {
+        query = query.eq('guru_id', isAdmin ? selectedGuruFilter : currentUser?.id);
+      }
+
       const { data: scheds, error: schedError } = await query.order('start_time', { ascending: true });
       
       if (schedError) throw schedError;
@@ -210,24 +228,65 @@ export default function JadwalMengajar() {
     e.preventDefault();
     if (!canManage) return;
 
-    if (!formData.guru_id || !formData.class_id) {
+    const isAdmin = userRole === "admin" || currentUser?.email?.includes("admin@sekolah");
+    const finalGuruId = isAdmin ? formData.guru_id : currentUser?.id;
+
+    if (!finalGuruId || !formData.class_id) {
       toast.error("Silakan pilih guru dan kelas");
       return;
     }
 
     setLoading(true);
     try {
+      // Check for overlaps
+      const { data: conflicts, error: checkError } = await supabase
+        .from('teaching_schedules')
+        .select('id, subject, start_time, end_time, class:classes(name)')
+        .eq('guru_id', finalGuruId)
+        .eq('day', formData.day);
+
+      if (checkError) throw checkError;
+
+      const hasOverlap = conflicts?.some(conflict => {
+        // Skip current schedule if editing
+        if (selectedSchedule && conflict.id === selectedSchedule.id) return false;
+
+        const startA = formData.start_time;
+        const endA = formData.end_time;
+        const startB = conflict.start_time.substring(0, 5);
+        const endB = conflict.end_time.substring(0, 5);
+        
+        // Overlap logic: (StartA < EndB) AND (EndA > StartB)
+        return startA < endB && endA > startB;
+      });
+
+      if (hasOverlap) {
+        const conflict = conflicts?.find(c => {
+          if (selectedSchedule && c.id === selectedSchedule.id) return false;
+          return formData.start_time < c.end_time.substring(0, 5) && formData.end_time > c.start_time.substring(0, 5);
+        });
+        const conflictClassName = Array.isArray(conflict?.class) ? (conflict.class as any)[0]?.name : (conflict?.class as any)?.name;
+        toast.error(`Bentrok Jadwal! Anda sudah memiliki jadwal Mengajar ${conflict?.subject} di kelas ${conflictClassName || "Lain"} pada jam tersebut.`);
+        setLoading(false);
+        return;
+      }
+
+      const payload = { 
+        ...formData, 
+        guru_id: finalGuruId 
+      };
+
       if (selectedSchedule) {
         const { error } = await supabase
           .from('teaching_schedules')
-          .update(formData)
+          .update(payload)
           .eq('id', selectedSchedule.id);
         if (error) throw error;
         toast.success("Jadwal tetap diperbarui");
       } else {
         const { error } = await supabase
           .from('teaching_schedules')
-          .insert([formData]);
+          .insert([payload]);
         if (error) throw error;
         toast.success("Jadwal tetap ditambahkan");
       }
@@ -327,7 +386,8 @@ export default function JadwalMengajar() {
   const daySchedules = schedules.filter(s => {
     const matchesDay = s.day === activeDay;
     const matchesClass = selectedClassFilter === "all" || s.class_id === selectedClassFilter;
-    return matchesDay && matchesClass;
+    const matchesSubject = !selectedSubjectFilter || s.subject.toLowerCase().includes(selectedSubjectFilter.toLowerCase());
+    return matchesDay && matchesClass && matchesSubject;
   });
 
   // Calculate teacher workload
@@ -361,16 +421,34 @@ export default function JadwalMengajar() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="w-8 h-[2px] bg-blue-600 rounded-full"></span>
-            <span className="text-blue-600 font-black text-[10px] uppercase tracking-[0.2em]">Akademik</span>
+            <span className="text-blue-600 font-black text-[10px] uppercase tracking-[0.2em]">
+              {userRole === "admin" ? "Administrasi" : "Jadwal Saya"}
+            </span>
           </div>
-          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Jadwal Mengajar</h1>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
+            {userRole === "admin" ? "Manajemen Jadwal" : "Jadwal Mengajar"}
+          </h1>
           <p className="text-slate-500 font-medium mt-1">
             Monitoring kegiatan belajar mengajar <span className="text-slate-900 font-bold">SDN 1 Dukuhwaluh</span>.
           </p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
+          {(userRole === "admin" || currentUser?.email?.includes("admin@sekolah")) && (
+            <div className="flex items-center gap-3 w-full">
+               <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <Input 
+                    placeholder="Cari Mata Pelajaran..."
+                    value={selectedSubjectFilter}
+                    onChange={(e) => setSelectedSubjectFilter(e.target.value)}
+                    className="h-12 pl-10 bg-white border-slate-100 rounded-xl font-bold text-sm shadow-sm focus:ring-blue-500"
+                  />
+               </div>
+            </div>
+          )}
+          
+          <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-100 shadow-sm w-full md:w-auto">
             <Select value={selectedWeek} onValueChange={setSelectedWeek}>
               <SelectTrigger className="h-10 w-[140px] border-none bg-transparent font-black text-blue-600 text-xs uppercase tracking-wider focus:ring-0">
                 <div className="flex items-center gap-2">
@@ -406,43 +484,47 @@ export default function JadwalMengajar() {
             </Select>
           </div>
 
-          <Select value={selectedClassFilter} onValueChange={setSelectedClassFilter}>
-            <SelectTrigger className="h-12 w-full md:w-[180px] bg-white border-slate-100 rounded-xl font-bold text-slate-600 px-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <School size={16} className="text-slate-300" />
-                <SelectValue placeholder="Semua Kelas" />
-              </div>
-            </SelectTrigger>
-            <SelectContent className="rounded-xl border-slate-100">
-              <SelectItem value="all" className="font-bold">Semua Kelas</SelectItem>
-              {activeClasses.map(cls => (
-                <SelectItem key={cls.id} value={cls.id} className="font-bold">{cls.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <Select value={selectedClassFilter} onValueChange={setSelectedClassFilter}>
+              <SelectTrigger className="h-12 w-full md:w-[160px] bg-white border-slate-100 rounded-xl font-bold text-slate-600 px-4 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <School size={16} className="text-slate-300" />
+                  <SelectValue placeholder="Semua Kelas" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-slate-100">
+                <SelectItem value="all" className="font-bold">Semua Kelas</SelectItem>
+                {activeClasses.map(cls => (
+                  <SelectItem key={cls.id} value={cls.id} className="font-bold">{cls.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          {canManage && (
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              <Button 
-                variant="outline"
-                onClick={handleBulkFill}
-                disabled={loading || schedules.length === 0}
-                className="h-12 px-5 border-blue-200 text-blue-600 hover:bg-blue-50 font-bold rounded-xl transition-all flex items-center gap-2 shadow-sm"
-              >
-                <CalendarDays size={18} />
-                <span className="hidden sm:inline">Isi 20 Minggu</span>
-                <span className="sm:hidden">20 Mgg</span>
-              </Button>
+            {(userRole === "admin" || currentUser?.email?.includes("admin@sekolah")) && (
+              <Select value={selectedGuruFilter} onValueChange={setSelectedGuruFilter}>
+                <SelectTrigger className="h-12 w-full md:w-[180px] bg-white border-slate-100 rounded-xl font-bold text-slate-600 px-4 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <UserCircle size={16} className="text-slate-300" />
+                    <SelectValue placeholder="Semua Guru" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-slate-100">
+                  <SelectItem value="all" className="font-bold">Semua Guru</SelectItem>
+                  {guruList.map(guru => (
+                    <SelectItem key={guru.id} value={guru.id} className="font-bold text-xs">{guru.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
-              <Button 
+            <Button 
                 onClick={() => { setSelectedSchedule(null); setIsDialogOpen(true); }} 
                 className="h-12 px-6 bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-200 rounded-xl transition-all flex items-center gap-2 group flex-1 md:flex-none"
               >
                 <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> 
-                <span>Tambah Jadwal</span>
+                <span>{userRole === "admin" ? "Jadwal" : "Sesi KBM"}</span>
               </Button>
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -570,14 +652,25 @@ export default function JadwalMengajar() {
                         <TableCell className="text-right pr-8">
                           <div className="flex flex-col items-end gap-2">
                             {canManage && (
-                              <Button 
-                                variant="outline"
-                                size="sm"
-                                onClick={() => { setSelectedSchedule(row); setIsMaterialDialogOpen(true); }} 
-                                className="h-9 px-4 border-blue-200 hover:border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all w-full md:w-32 shadow-sm"
-                              >
-                                <BookOpen size={14} className="mr-2" /> Input Materi
-                              </Button>
+                              <div className="flex flex-col gap-2 w-full md:w-32">
+                                <Button 
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => { setSelectedSchedule(row); setIsMaterialDialogOpen(true); }} 
+                                  className="h-9 px-4 border-blue-200 hover:border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all w-full shadow-sm"
+                                >
+                                  <BookOpen size={14} className="mr-2" /> Input Materi
+                                </Button>
+                                <Link to={`/nilai?classId=${row.class_id}&subject=${encodeURIComponent(row.subject)}`} className="w-full">
+                                  <Button 
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 px-4 border-indigo-200 hover:border-indigo-600 text-indigo-600 hover:bg-indigo-50 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all w-full shadow-sm"
+                                  >
+                                    <GraduationCap size={14} className="mr-2" /> Input Nilai
+                                  </Button>
+                                </Link>
+                              </div>
                             )}
                             {canManage && (
                               <div className="flex items-center gap-1.5 w-full md:w-32 justify-end">
@@ -768,19 +861,25 @@ export default function JadwalMengajar() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Guru Pengampu</Label>
-                <Select 
-                  value={formData.guru_id} 
-                  onValueChange={(val) => setFormData({ ...formData, guru_id: val })}
-                >
-                  <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500">
-                    <SelectValue placeholder="Pilih Guru" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-slate-100 shadow-xl">
-                    {guruList.map(guru => (
-                      <SelectItem key={guru.id} value={guru.id} className="font-bold py-3">{guru.full_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {userRole === "admin" || currentUser?.email?.includes("admin@sekolah") ? (
+                  <Select 
+                    value={formData.guru_id} 
+                    onValueChange={(val) => setFormData({ ...formData, guru_id: val })}
+                  >
+                    <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500">
+                      <SelectValue placeholder="Pilih Guru" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-slate-100 shadow-xl">
+                      {guruList.map(guru => (
+                        <SelectItem key={guru.id} value={guru.id} className="font-bold py-3">{guru.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="h-12 bg-slate-100 border border-slate-200 rounded-xl flex items-center px-4 font-black text-slate-400 text-sm italic uppercase tracking-wider">
+                    {guruList.find(g => g.id === currentUser?.id)?.full_name || "Data Guru Anda"}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Target Kelas</Label>
