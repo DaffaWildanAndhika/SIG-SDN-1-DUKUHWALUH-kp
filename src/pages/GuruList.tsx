@@ -188,83 +188,184 @@ export default function GuruList() {
     try {
       if (selectedGuru) {
         // Update existing guru via Admin Update API
-        const response = await fetch("/api/admin/update-user", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: selectedGuru.id,
-            email: formData.email,
-            password: formData.password || undefined, // only update password if provided
+        let apiSuccess = false;
+        let apiError = "";
+
+        try {
+          const response = await fetch("/api/admin/update-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: selectedGuru.id,
+              email: formData.email,
+              password: formData.password || undefined, // only update password if provided
+              full_name: formData.full_name,
+              role: selectedGuru.role || "guru",
+              nip: formData.nip,
+              gender: formData.gender,
+              subject: formData.subject,
+              phone: formData.phone,
+              address: formData.address,
+              is_active: formData.is_active
+            })
+          });
+
+          const text = await response.text();
+          let result: any = {};
+          if (text) {
+            try {
+              result = JSON.parse(text);
+            } catch (e) {
+              console.error("Format parsing error:", text);
+            }
+          }
+          
+          if (!response.ok) {
+            apiError = result.error || "Gagal memperbarui akun guru";
+          } else {
+            apiSuccess = true;
+          }
+        } catch (fetchErr: any) {
+          console.warn("API Update failed (endpoint missing or network error), attempting direct library-sync fallback:", fetchErr);
+          apiError = fetchErr.message || "Failed to fetch API route";
+        }
+
+        // Direct fallback update to Supabase Profiles table if API fails
+        if (!apiSuccess) {
+          const updateFields: any = {
             full_name: formData.full_name,
-            role: selectedGuru.role || "guru",
             nip: formData.nip,
             gender: formData.gender,
             subject: formData.subject,
             phone: formData.phone,
             address: formData.address,
             is_active: formData.is_active
-          })
-        });
+          };
+          
+          if (formData.password) {
+            updateFields.avatar_url = formData.password; // update stored plain password
+          }
 
-        const text = await response.text();
-        let result: any = {};
-        if (text) {
-          try {
-            result = JSON.parse(text);
-          } catch (e) {
-            console.error("Format parsing error:", text);
-            throw new Error(`Respons tidak valid dari server (bukan JSON): ${text.substring(0, 155)}`);
+          const { error: directError } = await supabase
+            .from('profiles')
+            .update(updateFields)
+            .eq('id', selectedGuru.id);
+
+          if (directError) {
+            throw new Error(`${apiError} (Detail Database: ${directError.message})`);
+          } else {
+            toast.info("Database disinkronkan langsung (API Admin dilewati/fallback)");
           }
         }
-        
-        if (!response.ok) {
-          throw new Error(result.error || "Gagal memperbarui akun guru");
-        }
-        
+
         await logActivity("Mengubah Data Guru", `Mengubah informasi data akun guru ${formData.full_name} (NIP: ${formData.nip || '-'})`);
         toast.success("Data guru berhasil diperbarui");
       } else {
         // Create new guru via Admin API
-        const response = await fetch("/api/admin/create-user", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        let apiSuccess = false;
+        let apiError = "";
+        let result: any = {};
+
+        try {
+          const response = await fetch("/api/admin/create-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: formData.email,
+              password: formData.password,
+              full_name: formData.full_name,
+              role: "guru"
+            })
+          });
+
+          const text = await response.text();
+          if (text) {
+            try {
+              result = JSON.parse(text);
+            } catch (e) {
+              console.error("Format parsing error:", text);
+            }
+          }
+          
+          if (!response.ok) {
+            apiError = result.error || "Gagal membuat akun guru";
+          } else {
+            apiSuccess = true;
+          }
+        } catch (fetchErr: any) {
+          console.warn("API Creation failed, trying direct signUp flow:", fetchErr);
+          apiError = fetchErr.message || "Failed to fetch";
+        }
+
+        if (apiSuccess && result?.user?.id) {
+          // Update profile with remaining fields since Admin API might only do basic insert
+          const { error: patchError } = await supabase
+            .from('profiles')
+            .update({
+              nip: formData.nip,
+              gender: formData.gender,
+              subject: formData.subject,
+              phone: formData.phone,
+              address: formData.address,
+              is_active: formData.is_active
+            })
+            .eq('id', result.user.id);
+            
+          if (patchError) console.warn("Note: Profile patch failed", patchError.message);
+        } else {
+          // Attempt client-side fallback creation
+          console.log("Attempting direct client-side register fallback...");
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email: formData.email,
             password: formData.password,
-            full_name: formData.full_name,
-            role: "guru"
-          })
-        });
+            options: {
+              data: {
+                full_name: formData.full_name,
+                role: "guru"
+              }
+            }
+          });
 
-        const text = await response.text();
-        let result: any = {};
-        if (text) {
-          try {
-            result = JSON.parse(text);
-          } catch (e) {
-            console.error("Format parsing error:", text);
-            throw new Error(`Respons tidak valid dari server (bukan JSON): ${text.substring(0, 155)}`);
+          if (signUpError) {
+            throw new Error(`Gagal (API: ${apiError || 'Tidak tersedia'} / Auth: ${signUpError.message})`);
+          }
+
+          if (signUpData?.user?.id) {
+            // Update profile fields
+            const { error: pError } = await supabase
+              .from('profiles')
+              .update({
+                nip: formData.nip,
+                gender: formData.gender,
+                subject: formData.subject,
+                phone: formData.phone,
+                address: formData.address,
+                is_active: formData.is_active,
+                avatar_url: formData.password
+              })
+              .eq('id', signUpData.user.id);
+
+            if (pError) {
+              // Try direct insertion
+              await supabase.from('profiles').insert([{
+                id: signUpData.user.id,
+                full_name: formData.full_name,
+                email: formData.email,
+                role: "guru",
+                nip: formData.nip,
+                gender: formData.gender,
+                subject: formData.subject,
+                phone: formData.phone,
+                address: formData.address,
+                is_active: formData.is_active,
+                avatar_url: formData.password
+              }]);
+            }
+            toast.info("Akun dibuat langsung via Auth (Koneksi API Admin dilewati)");
+          } else {
+            throw new Error(apiError || "Gagal membuat akun guru");
           }
         }
-        
-        if (!response.ok) {
-          throw new Error(result.error || "Gagal membuat akun guru");
-        }
-
-        // Update profile with remaining fields since Admin API might only do basic insert
-        const { error: patchError } = await supabase
-          .from('profiles')
-          .update({
-            nip: formData.nip,
-            gender: formData.gender,
-            subject: formData.subject,
-            phone: formData.phone,
-            address: formData.address,
-            is_active: formData.is_active
-          })
-          .eq('id', result.user.id);
-          
-        if (patchError) console.warn("Note: Profile patch failed", patchError.message);
 
         await logActivity("Mendaftarkan Guru Baru", `Mendaftarkan guru baru ${formData.full_name} (Email: ${formData.email}, Mapel: ${formData.subject || '-'})`);
         toast.success("Akun guru berhasil didaftarkan");

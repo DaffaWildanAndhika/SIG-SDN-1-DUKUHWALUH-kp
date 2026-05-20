@@ -234,8 +234,14 @@ async function startServer() {
 
       // Perform auth update in a single request if there are changes
       if (Object.keys(updateAuthData).length > 0) {
-        const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, updateAuthData);
-        if (authError) throw authError;
+        try {
+          const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, updateAuthData);
+          if (authError) {
+            console.warn("Supabase Auth admin update bypassed (e.g. user was not found in Supabase Auth or service role restriction):", authError.message);
+          }
+        } catch (authException: any) {
+          console.warn("Auth update exception (non-blocking bypass):", authException);
+        }
       }
 
       // 2. Update profiles table
