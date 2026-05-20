@@ -206,7 +206,16 @@ export default function GuruList() {
           })
         });
 
-        const result = await response.json();
+        const text = await response.text();
+        let result: any = {};
+        if (text) {
+          try {
+            result = JSON.parse(text);
+          } catch (e) {
+            console.error("Format parsing error:", text);
+            throw new Error(`Respons tidak valid dari server (bukan JSON): ${text.substring(0, 155)}`);
+          }
+        }
         
         if (!response.ok) {
           throw new Error(result.error || "Gagal memperbarui akun guru");
@@ -227,7 +236,16 @@ export default function GuruList() {
           })
         });
 
-        const result = await response.json();
+        const text = await response.text();
+        let result: any = {};
+        if (text) {
+          try {
+            result = JSON.parse(text);
+          } catch (e) {
+            console.error("Format parsing error:", text);
+            throw new Error(`Respons tidak valid dari server (bukan JSON): ${text.substring(0, 155)}`);
+          }
+        }
         
         if (!response.ok) {
           throw new Error(result.error || "Gagal membuat akun guru");

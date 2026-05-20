@@ -205,21 +205,38 @@ async function startServer() {
         }
       });
 
-      // 1. If password is provided, update Auth user password
+      // Fetch the existing profile to compare values
+      const { data: existingProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("email, full_name, role")
+        .eq("id", id)
+        .single();
+
+      const updateAuthData: any = {};
+      
+      // Update password if a new one is provided
       if (password) {
-        const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
-          password: password
-        });
-        if (authError) throw authError;
+        updateAuthData.password = password;
       }
 
-      // 1b. Update auth metadata/email
-      const updateAuthData: any = {};
-      if (email) updateAuthData.email = email;
-      if (full_name || role) {
-        updateAuthData.user_metadata = { full_name, role };
+      // Only attempt to update email in Supabase Auth if it has actually changed
+      if (email && (!existingProfile || existingProfile.email !== email)) {
+        updateAuthData.email = email;
       }
-      await supabaseAdmin.auth.admin.updateUserById(id, updateAuthData);
+
+      // Update user metadata if name or role has changed / is provided
+      if (full_name || role) {
+        updateAuthData.user_metadata = {
+          full_name: full_name || (existingProfile?.full_name || ""),
+          role: role || (existingProfile?.role || "guru")
+        };
+      }
+
+      // Perform auth update in a single request if there are changes
+      if (Object.keys(updateAuthData).length > 0) {
+        const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, updateAuthData);
+        if (authError) throw authError;
+      }
 
       // 2. Update profiles table
       const updateFields: any = {
@@ -239,16 +256,16 @@ async function startServer() {
       }
 
       const { error: profileError } = await supabaseAdmin
-        .from('profiles')
+        .from("profiles")
         .update(updateFields)
-        .eq('id', id);
+        .eq("id", id);
 
       if (profileError) throw profileError;
 
       res.status(200).json({ status: "success" });
     } catch (error: any) {
       console.error("User update error:", error);
-      res.status(400).json({ error: error.message });
+      res.status(400).json({ error: error?.message || error || "Failed to update user" });
     }
   });
 

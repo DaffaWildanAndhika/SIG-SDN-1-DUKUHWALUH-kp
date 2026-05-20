@@ -1,5 +1,14 @@
 [
   {
+    "id": "eukrqnywg_1779314262172",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengubah Data Guru",
+    "details": "Mengubah informasi data akun guru Daffa S.Pd (NIP: 12345678)",
+    "created_at": "2026-05-20T21:57:42.172Z"
+  },
+  {
     "id": "c3gke0gxk_1779313545543",
     "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
     "user_fullname": "Administrator",
