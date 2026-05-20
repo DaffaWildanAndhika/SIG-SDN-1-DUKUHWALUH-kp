@@ -32,6 +32,7 @@ import Kelas from "./pages/Kelas";
 import Agenda from "./pages/Agenda";
 import NilaiSiswa from "./pages/NilaiSiswa";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 
 const SidebarItem = ({ to, icon: Icon, label, active, collapsed }: { to: string, icon: any, label: string, active: boolean, collapsed: boolean }) => (
   <Link to={to} className="block group">
@@ -181,7 +182,7 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
             <div className={`flex items-center gap-3 ${!isSidebarOpen && !isMobileMenuOpen ? 'mx-auto' : ''}`}>
               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shrink-0 overflow-hidden relative shadow-lg shadow-blue-600/20">
                 <img 
-                  src="/logo.jpg" 
+                  src="/logo_sekolah.png" 
                   alt="School Logo" 
                   className="absolute inset-0 w-full h-full object-contain bg-blue-600 z-10"
                   onError={(e) => {
@@ -488,6 +489,8 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
+        <Route path="/ResetPassword" element={<ResetPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         
         <Route path="/*" element={
           session ? (

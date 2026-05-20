@@ -18,7 +18,10 @@ export default function ResetPassword() {
     // Check if we are actually in a recovery session
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session && !window.location.hash.includes("type=recovery") && !window.location.hash.includes("access_token")) {
+      const hasCode = new URLSearchParams(window.location.search).has("code");
+      const hasHash = window.location.hash.includes("type=recovery") || window.location.hash.includes("access_token");
+      
+      if (!session && !hasHash && !hasCode) {
         toast.error("Sesi pemulihan tidak valid atau kadaluarsa.");
         navigate("/login");
       }

@@ -25,21 +25,6 @@ export default function Login() {
   const [resetEmail, setResetEmail] = useState("");
   const [emailResetLoading, setEmailResetLoading] = useState(false);
 
-  // Update Password State (for when returning from email)
-  const [isUpdateMode, setIsUpdateMode] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [updateLoading, setUpdateLoading] = useState(false);
-
-  React.useEffect(() => {
-    // Check if we just came from a password reset link
-    // Supabase usually redirects with #access_token=...&type=recovery
-    if (window.location.hash.includes("type=recovery")) {
-      setIsUpdateMode(true);
-      toast.info("Silakan tentukan kata sandi baru Anda.");
-    }
-  }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -59,30 +44,6 @@ export default function Login() {
     }
   };
 
-  const handleUpdatePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      return toast.error("Kata sandi tidak cocok.");
-    }
-    if (newPassword.length < 6) {
-      return toast.error("Kata sandi minimal 6 karakter.");
-    }
-
-    setUpdateLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-      toast.success("Kata sandi berhasil diperbarui! Silakan masuk kembali.");
-      setIsUpdateMode(false);
-      // Optional: signOut to force login with new password or just let them stay logged in if Supabase permits
-      await supabase.auth.signOut();
-    } catch (error: any) {
-      toast.error(error.message || "Gagal memperbarui kata sandi.");
-    } finally {
-      setUpdateLoading(false);
-    }
-  };
-
   const handleEmailReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmailResetLoading(true);
@@ -90,7 +51,7 @@ export default function Login() {
     try {
       const origin = window.location.origin;
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: `${origin}/login`,
+        redirectTo: `${origin}/ResetPassword`,
       });
 
       if (error) throw error;
@@ -116,7 +77,7 @@ export default function Login() {
         <div className="flex flex-col items-center mb-6">
           <div className="bg-blue-600 p-4 rounded-2xl shadow-xl shadow-blue-200 mb-4 cursor-pointer hover:scale-105 transition-transform flex items-center justify-center overflow-hidden relative w-16 h-16">
             <img 
-              src="/logo.jpg" 
+              src="/logo_sekolah.png" 
               alt="School Logo" 
               className="absolute inset-0 w-full h-full object-contain bg-blue-600 z-10"
               onError={(e) => {
@@ -127,74 +88,20 @@ export default function Login() {
             <School className="text-white" size={32} />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 leading-tight">SDN 1 Dukuhwaluh</h1>
-          <p className="text-slate-500 text-sm">Sistem Informasi Akademik Guru</p>
+          <p className="text-slate-500 text-sm">Sistem Informasi Administrasi Guru</p>
         </div>
 
         <Card className="border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
           <div className="h-1 bg-blue-600 w-full"></div>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-xl font-bold">
-              {isUpdateMode ? "Perbarui Kata Sandi" : "Selamat Datang"}
-            </CardTitle>
+            <CardTitle className="text-xl font-bold">Selamat Datang</CardTitle>
             <CardDescription>
-              {isUpdateMode 
-                ? "Masukkan kata sandi baru untuk akun Anda" 
-                : "Silakan masuk ke akun Anda untuk melanjutkan"
-              }
+              Silakan masuk ke akun Anda untuk melanjutkan
             </CardDescription>
           </CardHeader>
           
-          {isUpdateMode ? (
-            <form onSubmit={handleUpdatePassword}>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">Kata Sandi Baru</Label>
-                  <div className="relative">
-                    <Key className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                    <Input 
-                      id="newPassword" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      className="pl-10 h-11" 
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Konfirmasi Kata Sandi</Label>
-                  <div className="relative">
-                    <Key className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                    <Input 
-                      id="confirmPassword" 
-                      type="password" 
-                      placeholder="••••••••" 
-                      className="pl-10 h-11" 
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="flex flex-col gap-2">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700 h-11 text-white font-semibold" disabled={updateLoading}>
-                  {updateLoading ? "Menyimpan..." : "Perbarui Kata Sandi"}
-                </Button>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  onClick={() => setIsUpdateMode(false)}
-                  className="w-full h-11 text-slate-400"
-                >
-                  Batal
-                </Button>
-              </CardFooter>
-            </form>
-          ) : (
-            <form onSubmit={handleSubmit}>
-              <CardContent className="space-y-4">
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <div className="relative">
@@ -240,14 +147,26 @@ export default function Login() {
                   {loading ? "Memproses..." : "Masuk ke Sistem"}
                 </Button>
                 
-                
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 w-full space-y-3">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                    Gunakan Akun Berikut:
+                  </p>
+                  <button 
+                    type="button"
+                    onClick={() => { setEmail("admin@sekolah.id"); setPassword("admin123"); }}
+                    className="text-[11px] text-slate-600 hover:bg-white hover:shadow-sm p-2 rounded-lg transition-all text-left flex items-center justify-between w-full font-bold border border-transparent hover:border-blue-100"
+                  >
+                    <span className="text-blue-600">Login Admin</span>
+                    <span className="font-mono text-blue-400">admin@sekolah.id</span>
+                  </button>
+                </div>
               </CardFooter>
             </form>
-          )}
-        </Card>
+          </Card>
         
         <p className="mt-8 text-center text-slate-400 text-xs text-balance">
-          Sistem Informasi Akademik Guru SDN 1 Dukuhwaluh
+          Sistem Informasi Administrasi Guru SDN 1 Dukuhwaluh
         </p>
       </div>
 
