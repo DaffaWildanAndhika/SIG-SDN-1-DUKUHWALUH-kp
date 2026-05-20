@@ -17,7 +17,9 @@ import {
   FileText,
   Clock,
   ArrowRight,
-  UserCircle
+  UserCircle,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { 
   Table, 
@@ -55,6 +57,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { motion, AnimatePresence } from "motion/react";
+import { logActivity } from "@/lib/activityLogger";
 import * as XLSX from 'xlsx';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -69,6 +72,15 @@ export default function GuruList() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedGuru, setSelectedGuru] = useState<any>(null);
+  
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (id: string) => {
+    setVisiblePasswords(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
   
   // Form State
   const [formData, setFormData] = useState({
@@ -175,15 +187,32 @@ export default function GuruList() {
     setLoading(true);
     try {
       if (selectedGuru) {
-        // Update existing guru (only profile data)
-        const updateData = { ...formData };
-        delete (updateData as any).password;
+        // Update existing guru via Admin Update API
+        const response = await fetch("/api/admin/update-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: selectedGuru.id,
+            email: formData.email,
+            password: formData.password || undefined, // only update password if provided
+            full_name: formData.full_name,
+            role: selectedGuru.role || "guru",
+            nip: formData.nip,
+            gender: formData.gender,
+            subject: formData.subject,
+            phone: formData.phone,
+            address: formData.address,
+            is_active: formData.is_active
+          })
+        });
+
+        const result = await response.json();
         
-        const { error } = await supabase
-          .from('profiles')
-          .update(updateData)
-          .eq('id', selectedGuru.id);
-        if (error) throw error;
+        if (!response.ok) {
+          throw new Error(result.error || "Gagal memperbarui akun guru");
+        }
+        
+        await logActivity("Mengubah Data Guru", `Mengubah informasi data akun guru ${formData.full_name} (NIP: ${formData.nip || '-'})`);
         toast.success("Data guru berhasil diperbarui");
       } else {
         // Create new guru via Admin API
@@ -219,6 +248,7 @@ export default function GuruList() {
           
         if (patchError) console.warn("Note: Profile patch failed", patchError.message);
 
+        await logActivity("Mendaftarkan Guru Baru", `Mendaftarkan guru baru ${formData.full_name} (Email: ${formData.email}, Mapel: ${formData.subject || '-'})`);
         toast.success("Akun guru berhasil didaftarkan");
       }
       setIsDialogOpen(false);
@@ -234,6 +264,13 @@ export default function GuruList() {
     if (confirm("Apakah Anda yakin ingin menghapus data guru ini?")) {
       try {
         setLoading(true);
+        const { data: grData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', id)
+          .single();
+        const guruName = grData?.full_name || "Guru";
+
         await supabase.from('announcements').update({ author_id: null }).eq('author_id', id);
         await supabase.from('classes').update({ wali_kelas_id: null }).eq('wali_kelas_id', id);
 
@@ -243,6 +280,7 @@ export default function GuruList() {
           .eq('id', id);
           
         if (error) throw error;
+        await logActivity("Menghapus Data Guru", `Menghapus data akun guru ${guruName}`);
         toast.success("Data guru berhasil dihapus");
         fetchData();
       } catch (error: any) {
@@ -425,6 +463,9 @@ export default function GuruList() {
               <TableRow className="hover:bg-transparent border-slate-100">
                 <TableHead className="w-[100px] h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-8">Inisial</TableHead>
                 <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Identitas Guru</TableHead>
+                {canManage && (
+                  <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Password</TableHead>
+                )}
                 <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Kredensial (NIP)</TableHead>
                 <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Bidang Keahlian</TableHead>
                 <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</TableHead>
@@ -438,6 +479,7 @@ export default function GuruList() {
                     <TableRow key={`skeleton-${i}`} className="border-slate-50">
                       <TableCell className="pl-8 py-6"><div className="h-12 w-12 bg-slate-50 rounded-2xl animate-pulse" /></TableCell>
                       <TableCell><div className="space-y-2"><div className="h-4 w-40 bg-slate-50 rounded animate-pulse" /><div className="h-3 w-24 bg-slate-50 rounded animate-pulse" /></div></TableCell>
+                      {canManage && <TableCell><div className="h-4 w-20 bg-slate-50 rounded animate-pulse" /></TableCell>}
                       <TableCell><div className="h-4 w-32 bg-slate-50 rounded animate-pulse" /></TableCell>
                       <TableCell><div className="h-4 w-24 bg-slate-50 rounded animate-pulse" /></TableCell>
                       <TableCell><div className="h-6 w-20 bg-slate-50 rounded-full animate-pulse" /></TableCell>
@@ -468,6 +510,30 @@ export default function GuruList() {
                            {guru.gender === "Laki-laki" ? <span className="text-blue-300">♂</span> : <span className="text-pink-300">♀</span>}
                         </div>
                       </TableCell>
+                      {canManage && (
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm bg-slate-100 px-2.5 py-1 rounded-xl select-all font-bold text-slate-700">
+                              {visiblePasswords[guru.id] 
+                                ? (guru.avatar_url || "admin123") 
+                                : "••••••••"}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              type="button"
+                              onClick={() => togglePasswordVisibility(guru.id)}
+                              className="h-8 w-8 hover:bg-slate-200 rounded-lg flex items-center justify-center shrink-0"
+                            >
+                              {visiblePasswords[guru.id] ? (
+                                <EyeOff size={14} className="text-slate-500" />
+                              ) : (
+                                <Eye size={14} className="text-slate-500" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
                       <TableCell className="font-mono text-xs font-black text-slate-400 tracking-widest bg-slate-50/30 rounded-lg px-3 py-1 scale-95 origin-left">
                         {guru.nip || "BELUM ADA NIP"}
                       </TableCell>
@@ -598,31 +664,32 @@ export default function GuruList() {
                     />
                   </div>
 
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email Login</Label>
+                    <Input 
+                      type="email"
+                      placeholder="guru@sekolah.id" 
+                      className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl" 
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      required
+                      disabled={!!selectedGuru}
+                    />
+                  </div>
                   {!selectedGuru && (
-                    <>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Email Login</Label>
-                        <Input 
-                          type="email"
-                          placeholder="guru@sekolah.id" 
-                          className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl" 
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Password Akun</Label>
-                        <Input 
-                          type="password"
-                          placeholder="Minimal 6 karakter..." 
-                          className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl" 
-                          value={formData.password}
-                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                          required
-                        />
-                      </div>
-                    </>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
+                        Password Akun
+                      </Label>
+                      <Input 
+                        type="password"
+                        placeholder="Minimal 6 karakter..."
+                        className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl" 
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        required
+                      />
+                    </div>
                   )}
 
                   <div className="space-y-2">

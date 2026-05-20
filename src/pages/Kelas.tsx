@@ -29,6 +29,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { logActivity } from "@/lib/activityLogger";
 import XLSX from "xlsx-js-style";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -194,12 +195,14 @@ export default function Kelas() {
           .update(studentFormData)
           .eq('id', selectedStudent.id);
         if (error) throw error;
+        await logActivity("Mengubah Data Siswa", `Mengubah data siswa ${studentFormData.full_name} (NIS: ${studentFormData.nis || '-'}) di kelas ${selectedKelas.name}`);
         toast.success("Data murid diperbarui");
       } else {
         const { error } = await supabase
           .from('students')
           .insert([{ ...studentFormData, class_id: selectedKelas.id }]);
         if (error) throw error;
+        await logActivity("Menambahkan Data Siswa", `Menambahkan siswa baru ${studentFormData.full_name} (NIS: ${studentFormData.nis || '-'}) ke kelas ${selectedKelas.name}`);
         toast.success("Murid berhasil ditambahkan");
       }
       setIsAddStudentOpen(false);
@@ -216,8 +219,18 @@ export default function Kelas() {
     if (!confirm("Hapus data murid ini?")) return;
     
     try {
+      // Fetch details first
+      const { data: stdData } = await supabase
+        .from('students')
+        .select('full_name')
+        .eq('id', studentId)
+        .single();
+      const studentName = stdData?.full_name || "Siswa";
+
       const { error } = await supabase.from('students').delete().eq('id', studentId);
       if (error) throw error;
+
+      await logActivity("Menghapus Data Siswa", `Menghapus data siswa ${studentName} dari kelas ${selectedKelas?.name || ''}`);
       toast.success("Data murid dihapus");
       if (selectedKelas) fetchStudents(selectedKelas.id);
       fetchClasses(); // Refresh counts
@@ -241,12 +254,14 @@ export default function Kelas() {
           .update(payload)
           .eq('id', selectedKelas.id);
         if (error) throw error;
+        await logActivity("Mengubah Data Kelas", `Mengubah informasi kelas ${payload.name} (Tahun Ajaran: ${payload.academic_year})`);
         toast.success("Data kelas diperbarui");
       } else {
         const { error } = await supabase
           .from('classes')
           .insert([payload]);
         if (error) throw error;
+        await logActivity("Menambahkan Kelas Baru", `Menambahkan kelas baru ${payload.name} (Tahun Ajaran: ${payload.academic_year})`);
         toast.success("Kelas baru ditambahkan");
       }
       setIsDialogOpen(false);
@@ -261,8 +276,17 @@ export default function Kelas() {
   const handleDelete = async (id: string) => {
     if (confirm("Hapus kelas ini? Semua jadwal terkait juga akan dihapus.")) {
       try {
+        const { data: clsData } = await supabase
+          .from('classes')
+          .select('name')
+          .eq('id', id)
+          .single();
+        const className = clsData?.name || "Kelas";
+
         const { error } = await supabase.from('classes').delete().eq('id', id);
         if (error) throw error;
+
+        await logActivity("Menghapus Kelas", `Menghapus data kelas ${className}`);
         toast.success("Kelas berhasil dihapus");
         fetchClasses();
       } catch (error: any) {

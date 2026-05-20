@@ -24,6 +24,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { logActivity } from "@/lib/activityLogger";
 import XLSX from "xlsx-js-style";
 
 export default function NilaiSiswa() {
@@ -331,6 +332,7 @@ export default function NilaiSiswa() {
           .upsert(payload, { onConflict: 'student_id,class_id,subject,scope_name' });
 
         if (error) throw error;
+        await logActivity("Menginput Nilai Harian", `Menginput/memperbarui nilai harian mata pelajaran ${selectedSubject} - Bab/Materi: ${scopeName} untuk seluruh siswa di kelas ${selectedClass?.name || ''}`);
       } else {
         const payload = students.map(student => {
           const grade = semesterGrades[student.id];
@@ -354,6 +356,7 @@ export default function NilaiSiswa() {
           .upsert(payload, { onConflict: 'student_id,class_id,subject,academic_year' });
 
         if (error) throw error;
+        await logActivity("Menginput Nilai Rapor", `Menginput/memperbarui nilai rapor Semester UTS/UAS mata pelajaran ${selectedSubject} untuk seluruh siswa di kelas ${selectedClass?.name || ''}`);
       }
 
       toast.success("Nilai berhasil disimpan!");

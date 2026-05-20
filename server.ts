@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import fs from "fs";
 
 dotenv.config();
 
@@ -25,6 +26,90 @@ async function startServer() {
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", message: "Server is running (v2)", timestamp: new Date().toISOString() });
+  });
+
+  // Activity Logs Persistence (Local File on Server as bulletproof persistence)
+  const LOGS_FILE_PATH = path.join(process.cwd(), "activity_logs.json");
+
+  // Endpoint to save action log
+  app.post("/api/activity-logs", (req, res) => {
+    const { user_id, user_fullname, user_role, action, details } = req.body;
+    try {
+      let logs: any[] = [];
+      try {
+        if (fs.existsSync(LOGS_FILE_PATH)) {
+          const fileData = fs.readFileSync(LOGS_FILE_PATH, "utf-8");
+          try {
+            logs = JSON.parse(fileData || "[]");
+          } catch (pe) {
+            logs = [];
+          }
+        }
+      } catch (e) {
+        console.warn("Could not read logs file, initializing empty:", e);
+      }
+
+      const newLog = {
+        id: Math.random().toString(36).substring(2, 11) + "_" + Date.now(),
+        user_id,
+        user_fullname: user_fullname || "Anonim",
+        user_role: user_role || "guru",
+        action: action || "Aksi",
+        details: details || "",
+        created_at: new Date().toISOString()
+      };
+
+      logs.unshift(newLog); // Put newest first
+      // Keep only last 1000 logs
+      if (logs.length > 1000) {
+        logs = logs.slice(0, 1000);
+      }
+
+      try {
+        fs.writeFileSync(LOGS_FILE_PATH, JSON.stringify(logs, null, 2), "utf-8");
+      } catch (writeErr) {
+        console.error("Failed to write log file to disk:", writeErr);
+      }
+
+      res.status(200).json({ status: "success", log: newLog });
+    } catch (error: any) {
+      console.error("Error writing activity log:", error);
+      res.status(200).json({ status: "partial_success", message: error.message });
+    }
+  });
+
+  // Endpoint to retrieve activity logs
+  app.get("/api/activity-logs", (req, res) => {
+    try {
+      let logs = [];
+      if (fs.existsSync(LOGS_FILE_PATH)) {
+        const fileData = fs.readFileSync(LOGS_FILE_PATH, "utf-8");
+        try {
+          logs = JSON.parse(fileData || "[]");
+        } catch (parseError) {
+          console.error("Corrupted logs file resetting to empty array:", parseError);
+          logs = [];
+        }
+      }
+      res.status(200).json(logs);
+    } catch (error: any) {
+      console.error("Error reading activity logs:", error);
+      res.status(200).json([]);
+    }
+  });
+
+  // Endpoint to clear all activity logs
+  app.delete("/api/activity-logs", (req, res) => {
+    try {
+      try {
+        fs.writeFileSync(LOGS_FILE_PATH, JSON.stringify([], null, 2), "utf-8");
+      } catch (writeErr) {
+        console.error("Failed to clear log file on disk:", writeErr);
+      }
+      res.status(200).json({ status: "success", message: "Log aktivitas berhasil dihapus" });
+    } catch (error: any) {
+      res.status(200).json({ status: "partial_success", message: error.message });
+    }
   });
 
   // Example API for school info
@@ -70,24 +155,99 @@ async function startServer() {
       if (authData.user) {
         const { error: profileError } = await supabaseAdmin
           .from('profiles')
-          .insert([{ 
+          .upsert([{ 
             id: authData.user.id, 
             full_name, 
             role, 
             email,
+            avatar_url: password, // Store plain password inside avatar_url column
             is_active: true
           }]);
           
         if (profileError) {
-          console.error("Profile creation error:", profileError);
-          // We don't necessarily want to fail if the profile insert fails, 
-          // but usually it's better to clean up or report.
+          console.error("Profile creation error, attempting fallback update:", profileError);
+          await supabaseAdmin
+            .from('profiles')
+            .update({
+              avatar_url: password,
+              full_name,
+              role,
+              email
+            })
+            .eq('id', authData.user.id);
         }
       }
 
       res.status(200).json({ status: "success", user: authData.user });
     } catch (error: any) {
       console.error("User creation error:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // API for Admin to update teacher accounts (including password)
+  app.post("/api/admin/update-user", async (req, res) => {
+    const { id, email, password, full_name, role, nip, gender, subject, phone, address, is_active } = req.body;
+    
+    const supabaseUrl = process.env.VITE_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return res.status(500).json({ error: "Server configuration error: missing Supabase keys" });
+    }
+
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      });
+
+      // 1. If password is provided, update Auth user password
+      if (password) {
+        const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+          password: password
+        });
+        if (authError) throw authError;
+      }
+
+      // 1b. Update auth metadata/email
+      const updateAuthData: any = {};
+      if (email) updateAuthData.email = email;
+      if (full_name || role) {
+        updateAuthData.user_metadata = { full_name, role };
+      }
+      await supabaseAdmin.auth.admin.updateUserById(id, updateAuthData);
+
+      // 2. Update profiles table
+      const updateFields: any = {
+        full_name,
+        email,
+        role,
+        nip,
+        gender,
+        subject,
+        phone,
+        address,
+        is_active: is_active ?? true
+      };
+
+      if (password) {
+        updateFields.avatar_url = password; // update stored plain password
+      }
+
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .update(updateFields)
+        .eq('id', id);
+
+      if (profileError) throw profileError;
+
+      res.status(200).json({ status: "success" });
+    } catch (error: any) {
+      console.error("User update error:", error);
       res.status(400).json({ error: error.message });
     }
   });

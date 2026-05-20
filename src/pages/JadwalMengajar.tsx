@@ -39,6 +39,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
+import { logActivity } from "@/lib/activityLogger";
 import { GraduationCap } from "lucide-react";
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
@@ -276,18 +277,35 @@ export default function JadwalMengajar() {
         guru_id: finalGuruId 
       };
 
+      // Fetch teacher and class names for descriptive logs
+      const { data: teacherProfile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', finalGuruId)
+        .single();
+      const { data: classData } = await supabase
+        .from('classes')
+        .select('name')
+        .eq('id', formData.class_id)
+        .single();
+
+      const teacherName = teacherProfile?.full_name || "Guru";
+      const className = classData?.name || "Kelas";
+
       if (selectedSchedule) {
         const { error } = await supabase
           .from('teaching_schedules')
           .update(payload)
           .eq('id', selectedSchedule.id);
         if (error) throw error;
+        await logActivity("Mengubah Jadwal Mengajar", `Mengubah jadwal mengajar ${teacherName} di ${className} pelajaran ${payload.subject} hari ${payload.day} pukul ${payload.start_time}-${payload.end_time}`);
         toast.success("Jadwal tetap diperbarui");
       } else {
         const { error } = await supabase
           .from('teaching_schedules')
           .insert([payload]);
         if (error) throw error;
+        await logActivity("Menambahkan Jadwal Mengajar", `Menambah jadwal mengajar baru untuk ${teacherName} di ${className} pelajaran ${payload.subject} hari ${payload.day} pukul ${payload.start_time}-${payload.end_time}`);
         toast.success("Jadwal tetap ditambahkan");
       }
       setIsDialogOpen(false);
@@ -316,6 +334,7 @@ export default function JadwalMengajar() {
         .upsert(payload, { onConflict: 'schedule_id,week_number' });
 
       if (error) throw error;
+      await logActivity("Mengisi Progres Materi", `Mengisi materi mengajar Minggu ${selectedWeek} untuk pelajaran ${selectedSchedule.subject} (Bab: ${materialData.chapter || '-'}, Sub-Bab: ${materialData.sub_chapter || '-'})`);
       toast.success(`Materi Minggu ${selectedWeek} diperbarui`);
       setIsMaterialDialogOpen(false);
       fetchSchedules();
@@ -361,6 +380,7 @@ export default function JadwalMengajar() {
         if (error) throw error;
       }
 
+      await logActivity("Pengisian Otomatis Progres Mengajar", "Mengisi otomatis progres mengajar 20 minggu untuk seluruh jadwal");
       toast.success("Jadwal 20 minggu berhasil diisi secara otomatis!");
       fetchSchedules();
     } catch (error: any) {
@@ -373,8 +393,21 @@ export default function JadwalMengajar() {
   const handleDelete = async (id: string) => {
     if (confirm("Hapus jadwal mengajar ini?")) {
       try {
+        // Fetch details before delete
+        const { data: schedData } = await supabase
+          .from('teaching_schedules')
+          .select('subject, day, profiles(full_name)')
+          .eq('id', id)
+          .single();
+
         const { error } = await supabase.from('teaching_schedules').delete().eq('id', id);
         if (error) throw error;
+
+        const teacherName = (schedData as any)?.profiles?.full_name || "Guru";
+        const subject = schedData?.subject || "Pelajaran";
+        const day = schedData?.day || "";
+        await logActivity("Menghapus Jadwal Mengajar", `Menghapus jadwal mengajar ${teacherName} pelajaran ${subject} pada hari ${day}`);
+
         toast.success("Jadwal dihapus");
         fetchSchedules();
       } catch (error: any) {

