@@ -36,7 +36,7 @@ import NilaiSiswa from "./pages/NilaiSiswa";
 import Login from "./pages/Login";
 import ActivityLogs from "./pages/ActivityLogs";
 import BackupRestore from "./pages/BackupRestore";
-import ChangePassword from "./pages/change-password";
+import ChangePassword from "./pages/ChangePassword";
 
 const SidebarItem = ({ to, icon: Icon, label, active, collapsed }: { to: string, icon: any, label: string, active: boolean, collapsed: boolean }) => (
   <Link to={to} className="block group">
