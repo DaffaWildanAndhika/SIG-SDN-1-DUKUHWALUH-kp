@@ -19,7 +19,8 @@ import {
   ArrowRight,
   UserCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  Key
 } from "lucide-react";
 import { 
   Table, 
@@ -73,14 +74,9 @@ export default function GuruList() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedGuru, setSelectedGuru] = useState<any>(null);
   
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
-
-  const togglePasswordVisibility = (id: string) => {
-    setVisiblePasswords(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [selectedGuruForReset, setSelectedGuruForReset] = useState<any>(null);
+  const [tempPasswordInput, setTempPasswordInput] = useState("Guru123");
   
   // Form State
   const [formData, setFormData] = useState({
@@ -117,6 +113,47 @@ export default function GuruList() {
       const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
       const isAdmin = role === "admin" || isSpecialAdmin;
       setCanManage(isAdmin);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedGuruForReset) return;
+
+    if (tempPasswordInput.length < 6) {
+      return toast.error("Password baru minimal harus 6 karakter.");
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/update-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedGuruForReset.id,
+          password: tempPasswordInput,
+          full_name: selectedGuruForReset.full_name,
+          role: selectedGuruForReset.role || "guru"
+        })
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || "Gagal mengubah password.");
+      }
+
+      await logActivity(
+        "Reset Password Guru",
+        `Mereset password sementara untuk guru: ${selectedGuruForReset.full_name} (${selectedGuruForReset.email || "-"})`
+      );
+
+      toast.success("Password berhasil direset!");
+      setIsResetDialogOpen(false);
+      setSelectedGuruForReset(null);
+    } catch (error: any) {
+      toast.error("Gagal reset password: " + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -241,10 +278,6 @@ export default function GuruList() {
             address: formData.address,
             is_active: formData.is_active
           };
-          
-          if (formData.password) {
-            updateFields.avatar_url = formData.password; // update stored plain password
-          }
 
           const { error: directError } = await supabase
             .from('profiles')
@@ -258,7 +291,12 @@ export default function GuruList() {
           }
         }
 
-        await logActivity("Mengubah Data Guru", `Mengubah informasi data akun guru ${formData.full_name} (NIP: ${formData.nip || '-'})`);
+        await logActivity(
+          "Mengubah Data Guru", 
+          `Mengubah informasi data akun guru ${formData.full_name} (NIP: ${formData.nip || '-'})`,
+          selectedGuru,
+          formData
+        );
         toast.success("Data guru berhasil diperbarui");
       } else {
         // Create new guru via Admin API
@@ -321,7 +359,8 @@ export default function GuruList() {
             options: {
               data: {
                 full_name: formData.full_name,
-                role: "guru"
+                role: "guru",
+                first_login: true
               }
             }
           });
@@ -341,7 +380,7 @@ export default function GuruList() {
                 phone: formData.phone,
                 address: formData.address,
                 is_active: formData.is_active,
-                avatar_url: formData.password
+                first_login: true
               })
               .eq('id', signUpData.user.id);
 
@@ -358,7 +397,7 @@ export default function GuruList() {
                 phone: formData.phone,
                 address: formData.address,
                 is_active: formData.is_active,
-                avatar_url: formData.password
+                first_login: true
               }]);
             }
             toast.info("Akun dibuat langsung via Auth (Koneksi API Admin dilewati)");
@@ -583,7 +622,7 @@ export default function GuruList() {
                 <TableHead className="w-[100px] h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-8">Inisial</TableHead>
                 <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Identitas Guru</TableHead>
                 {canManage && (
-                  <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Password</TableHead>
+                  <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Akses Akun</TableHead>
                 )}
                 <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Kredensial (NIP)</TableHead>
                 <TableHead className="h-14 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Bidang Keahlian</TableHead>
@@ -631,26 +670,21 @@ export default function GuruList() {
                       </TableCell>
                       {canManage && (
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm bg-slate-100 px-2.5 py-1 rounded-xl select-all font-bold text-slate-700">
-                              {visiblePasswords[guru.id] 
-                                ? (guru.avatar_url || "admin123") 
-                                : "••••••••"}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              type="button"
-                              onClick={() => togglePasswordVisibility(guru.id)}
-                              className="h-8 w-8 hover:bg-slate-200 rounded-lg flex items-center justify-center shrink-0"
-                            >
-                              {visiblePasswords[guru.id] ? (
-                                <EyeOff size={14} className="text-slate-500" />
-                              ) : (
-                                <Eye size={14} className="text-slate-500" />
-                              )}
-                            </Button>
-                          </div>
+                          <Button
+                            id={`r-btn-${guru.id}`}
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() => {
+                              setSelectedGuruForReset(guru);
+                              setTempPasswordInput("Guru123");
+                              setIsResetDialogOpen(true);
+                            }}
+                            className="bg-slate-50 border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all font-black text-[10px] uppercase tracking-wider h-8 rounded-lg px-3 flex items-center gap-1.5"
+                          >
+                            <Key size={12} className="shrink-0" />
+                            <span>Reset Password</span>
+                          </Button>
                         </TableCell>
                       )}
                       <TableCell className="font-mono text-xs font-black text-slate-400 tracking-widest bg-slate-50/30 rounded-lg px-3 py-1 scale-95 origin-left">
@@ -798,11 +832,11 @@ export default function GuruList() {
                   {!selectedGuru && (
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
-                        Password Akun
+                        Password Sementara
                       </Label>
                       <Input 
                         type="password"
-                        placeholder="Minimal 6 karakter..."
+                        placeholder="Contoh: guru123 (Minimal 6 karakter)"
                         className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl" 
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -879,6 +913,60 @@ export default function GuruList() {
               <Button type="submit" disabled={loading} className="h-12 px-10 bg-[#0f172a] hover:bg-slate-800 text-white font-black shadow-xl rounded-xl transition-all flex items-center gap-3">
                 {loading ? "Memproses..." : (selectedGuru ? "Simpan Perubahan" : "Terbitkan Profil")}
                 {!loading && <ArrowRight size={18} />}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-white rounded-3xl border-none shadow-2xl">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-xl"></div>
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center text-white">
+                <Key size={24} />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-black tracking-tight uppercase">Reset Password Guru</DialogTitle>
+                <DialogDescription className="text-blue-100 font-medium text-xs mt-1">
+                  Atur ulang password sementara akun guru.
+                </DialogDescription>
+              </div>
+            </div>
+          </div>
+          
+          <form onSubmit={handleResetPasswordSubmit} className="p-8 space-y-6 bg-white">
+            <div className="space-y-4">
+              {selectedGuruForReset && (
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                  <p className="text-xs font-black text-blue-700 uppercase tracking-widest leading-none mb-1">Guru Penerima</p>
+                  <p className="text-sm font-black text-slate-800">{selectedGuruForReset.full_name}</p>
+                  <p className="text-xs font-bold text-slate-500 font-mono mt-0.5">{selectedGuruForReset.email}</p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="temp-p-input" className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Password Sementara Baru</Label>
+                <Input
+                  id="temp-p-input"
+                  placeholder="Contoh: Guru123 (Minimal 6 karakter)"
+                  className="h-12 bg-slate-50/50 border-slate-150 focus:bg-white text-sm font-bold rounded-xl"
+                  value={tempPasswordInput}
+                  onChange={(e) => setTempPasswordInput(e.target.value)}
+                  required
+                />
+                <p className="text-[11px] text-slate-400 font-semibold leading-relaxed ml-1">
+                  Guru akan masuk dengan password ini dan langsung diminta untuk membuat password pribadi baru saat login demi keamanan akun.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-150">
+              <Button type="button" variant="ghost" onClick={() => setIsResetDialogOpen(false)} className="h-11 px-5 font-black text-slate-400 hover:text-slate-900 rounded-xl">Batal</Button>
+              <Button type="submit" disabled={loading} className="h-11 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-100 rounded-xl transition-all flex items-center gap-2">
+                {loading ? "Memproses..." : "Reset Password"}
+                {!loading && <ArrowRight size={16} />}
               </Button>
             </div>
           </form>

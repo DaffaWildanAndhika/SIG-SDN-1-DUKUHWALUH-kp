@@ -195,7 +195,12 @@ export default function Kelas() {
           .update(studentFormData)
           .eq('id', selectedStudent.id);
         if (error) throw error;
-        await logActivity("Mengubah Data Siswa", `Mengubah data siswa ${studentFormData.full_name} (NIS: ${studentFormData.nis || '-'}) di kelas ${selectedKelas.name}`);
+        await logActivity(
+          "Mengubah Data Siswa", 
+          `Mengubah data siswa ${studentFormData.full_name} (NIS: ${studentFormData.nis || '-'}) di kelas ${selectedKelas.name}`,
+          selectedStudent,
+          studentFormData
+        );
         toast.success("Data murid diperbarui");
       } else {
         const { error } = await supabase
@@ -254,7 +259,12 @@ export default function Kelas() {
           .update(payload)
           .eq('id', selectedKelas.id);
         if (error) throw error;
-        await logActivity("Mengubah Data Kelas", `Mengubah informasi kelas ${payload.name} (Tahun Ajaran: ${payload.academic_year})`);
+        await logActivity(
+          "Mengubah Data Kelas", 
+          `Mengubah informasi kelas ${payload.name} (Tahun Ajaran: ${payload.academic_year})`,
+          selectedKelas,
+          payload
+        );
         toast.success("Data kelas diperbarui");
       } else {
         const { error } = await supabase

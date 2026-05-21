@@ -155,7 +155,12 @@ export default function JadwalPiket() {
           .update(payload)
           .eq('id', selectedPiket.id);
         if (error) throw error;
-        await logActivity("Mengubah Jadwal Piket", `Mengubah jadwal piket guru ${teacherName} pada hari ${payload.day} (${payload.shift}) di ${payload.location || '-'}`);
+        await logActivity(
+          "Mengubah Jadwal Piket", 
+          `Mengubah jadwal piket guru ${teacherName} pada hari ${payload.day} (${payload.shift}) di ${payload.location || '-'}`,
+          selectedPiket,
+          payload
+        );
         toast.success("Jadwal piket diperbarui");
       } else {
         const { error } = await supabase

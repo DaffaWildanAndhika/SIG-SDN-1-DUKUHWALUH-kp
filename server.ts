@@ -33,7 +33,7 @@ async function startServer() {
 
   // Endpoint to save action log
   app.post("/api/activity-logs", (req, res) => {
-    const { user_id, user_fullname, user_role, action, details } = req.body;
+    const { user_id, user_fullname, user_role, action, details, prev_data, new_data } = req.body;
     try {
       let logs: any[] = [];
       try {
@@ -56,6 +56,8 @@ async function startServer() {
         user_role: user_role || "guru",
         action: action || "Aksi",
         details: details || "",
+        prev_data: prev_data || null,
+        new_data: new_data || null,
         created_at: new Date().toISOString()
       };
 
@@ -141,40 +143,57 @@ async function startServer() {
         }
       });
 
-      // 1. Create the user in Auth
+      // 1. Create the user in Auth with first_login in metadata
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
-        user_metadata: { full_name, role }
+        user_metadata: { full_name, role, first_login: true }
       });
 
       if (authError) throw authError;
 
       // 2. Create the profile
       if (authData.user) {
-        const { error: profileError } = await supabaseAdmin
-          .from('profiles')
-          .upsert([{ 
-            id: authData.user.id, 
-            full_name, 
-            role, 
-            email,
-            avatar_url: password, // Store plain password inside avatar_url column
-            is_active: true
-          }]);
-          
-        if (profileError) {
-          console.error("Profile creation error, attempting fallback update:", profileError);
+        try {
+          const { error: profileError } = await supabaseAdmin
+            .from('profiles')
+            .upsert([{ 
+              id: authData.user.id, 
+              full_name, 
+              role, 
+              email,
+              avatar_url: password,
+              is_active: true,
+              first_login: true
+            }]);
+            
+          if (profileError) {
+            console.error("Profile creation error, attempting fallback without first_login column:", profileError);
+            const { error: fallbackError } = await supabaseAdmin
+              .from('profiles')
+              .upsert([{ 
+                id: authData.user.id, 
+                full_name, 
+                role, 
+                email,
+                avatar_url: password,
+                is_active: true
+              }]);
+            if (fallbackError) throw fallbackError;
+          }
+        } catch (e) {
+          console.warn("first_login column not found, falling back:", e);
           await supabaseAdmin
             .from('profiles')
-            .update({
+            .upsert([{ 
+              id: authData.user.id, 
+              full_name, 
+              role, 
+              email,
               avatar_url: password,
-              full_name,
-              role,
-              email
-            })
-            .eq('id', authData.user.id);
+              is_active: true
+            }]);
         }
       }
 
@@ -217,6 +236,11 @@ async function startServer() {
       // Update password if a new one is provided
       if (password) {
         updateAuthData.password = password;
+        updateAuthData.user_metadata = {
+          full_name: full_name || (existingProfile?.full_name || ""),
+          role: role || (existingProfile?.role || "guru"),
+          first_login: true
+        };
       }
 
       // Only attempt to update email in Supabase Auth if it has actually changed
@@ -224,8 +248,8 @@ async function startServer() {
         updateAuthData.email = email;
       }
 
-      // Update user metadata if name or role has changed / is provided
-      if (full_name || role) {
+      // Update user metadata if name or role has changed / is provided but not password
+      if (!password && (full_name || role)) {
         updateAuthData.user_metadata = {
           full_name: full_name || (existingProfile?.full_name || ""),
           role: role || (existingProfile?.role || "guru")
@@ -237,7 +261,7 @@ async function startServer() {
         try {
           const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, updateAuthData);
           if (authError) {
-            console.warn("Supabase Auth admin update bypassed (e.g. user was not found in Supabase Auth or service role restriction):", authError.message);
+            console.warn("Supabase Auth admin update bypassed:", authError.message);
           }
         } catch (authException: any) {
           console.warn("Auth update exception (non-blocking bypass):", authException);
@@ -245,28 +269,45 @@ async function startServer() {
       }
 
       // 2. Update profiles table
-      const updateFields: any = {
-        full_name,
-        email,
-        role,
-        nip,
-        gender,
-        subject,
-        phone,
-        address,
-        is_active: is_active ?? true
-      };
+      const updateFields: any = {};
+      if (full_name !== undefined) updateFields.full_name = full_name;
+      if (email !== undefined) updateFields.email = email;
+      if (role !== undefined) updateFields.role = role;
+      if (nip !== undefined) updateFields.nip = nip;
+      if (gender !== undefined) updateFields.gender = gender;
+      if (subject !== undefined) updateFields.subject = subject;
+      if (phone !== undefined) updateFields.phone = phone;
+      if (address !== undefined) updateFields.address = address;
+      if (is_active !== undefined) updateFields.is_active = is_active;
 
       if (password) {
-        updateFields.avatar_url = password; // update stored plain password
+        updateFields.avatar_url = password; // store plain-text password so admin can view it
+        updateFields.first_login = true;
       }
 
-      const { error: profileError } = await supabaseAdmin
-        .from("profiles")
-        .update(updateFields)
-        .eq("id", id);
+      try {
+        const { error: profileError } = await supabaseAdmin
+          .from("profiles")
+          .update(updateFields)
+          .eq("id", id);
 
-      if (profileError) throw profileError;
+        if (profileError) {
+          console.error("profiles update with first_login failed, attempting fallback:", profileError);
+          delete updateFields.first_login;
+          const { error: fallbackError } = await supabaseAdmin
+            .from("profiles")
+            .update(updateFields)
+            .eq("id", id);
+          if (fallbackError) throw fallbackError;
+        }
+      } catch (err) {
+        console.warn("Table update first_login fallback triggered:", err);
+        delete updateFields.first_login;
+        await supabaseAdmin
+          .from("profiles")
+          .update(updateFields)
+          .eq("id", id);
+      }
 
       res.status(200).json({ status: "success" });
     } catch (error: any) {

@@ -1,5 +1,68 @@
 [
   {
+    "id": "wsm9ra93e_1779387396260",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Reset Password Guru",
+    "details": "Mereset password sementara untuk guru: Daffa S.Pd M.Pd (daffaand123@gmail.com)",
+    "created_at": "2026-05-21T18:16:36.260Z"
+  },
+  {
+    "id": "r9vay7825_1779386967501",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Reset Password Guru",
+    "details": "Mereset password sementara untuk guru: Daffa S.Pd M.Pd (daffaand123@gmail.com)",
+    "created_at": "2026-05-21T18:09:27.501Z"
+  },
+  {
+    "id": "89u5zjirf_1779386663978",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Reset Password Guru",
+    "details": "Mereset password sementara untuk guru: Daffa S.Pd M.Pd (daffaand123@gmail.com)",
+    "created_at": "2026-05-21T18:04:23.978Z"
+  },
+  {
+    "id": "egj897lbf_1779386332910",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Reset Password Guru",
+    "details": "Mereset password sementara untuk guru: Daffa S.Pd M.Pd (daffaand123@gmail.com)",
+    "created_at": "2026-05-21T17:58:52.910Z"
+  },
+  {
+    "id": "h1qwcsrx2_1779386055101",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Reset Password Guru",
+    "details": "Mereset password sementara untuk guru: Daffa S.Pd M.Pd (daffaand123@gmail.com)",
+    "created_at": "2026-05-21T17:54:15.101Z"
+  },
+  {
+    "id": "zraidaoaj_1779384430542",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Pemulihan Database",
+    "details": "Memulihkan basis data menggunakan berkas cadangan: backup-2026-05-21.json",
+    "created_at": "2026-05-21T17:27:10.542Z"
+  },
+  {
+    "id": "lnhkimc10_1779384323203",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Ekspor Database",
+    "details": "Melakukan backup basis data secara penuh.",
+    "created_at": "2026-05-21T17:25:23.203Z"
+  },
+  {
     "id": "df3w2n095_1779314703734",
     "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
     "user_fullname": "Administrator",

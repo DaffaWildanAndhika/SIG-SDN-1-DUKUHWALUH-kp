@@ -36,7 +36,7 @@ async function getActorInfo() {
   }
 }
 
-export async function logActivity(action: string, details: string) {
+export async function logActivity(action: string, details: string, prevData?: any, newData?: any) {
   // We perform the actual logging asynchronously to NEVER block the user's main dynamic action (e.g., adding schedule, grading, etc.)
   // By not awaiting the async wrapper, the UI continues instantly.
   (async () => {
@@ -55,6 +55,8 @@ export async function logActivity(action: string, details: string) {
         user_role: role,
         action,
         details,
+        prev_data: prevData || null,
+        new_data: newData || null,
         created_at: new Date().toISOString()
       };
 

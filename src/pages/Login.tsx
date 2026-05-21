@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Key, Mail, School } from "lucide-react";
+import { Key, Mail, School, Shield, GraduationCap, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,18 +11,69 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<'admin' | 'guru'>('admin');
+  const [teachers, setTeachers] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchTeachers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('email, full_name, avatar_url')
+          .eq('role', 'guru')
+          .limit(3);
+        if (!error && data) {
+          setTeachers(data);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch teachers for login suggestions:", err);
+      }
+    };
+    fetchTeachers();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
+    const emailTrimmed = email.trim().toLowerCase();
+    const isSpecialAdminEmail = emailTrimmed === "admin@sekolah.id" || emailTrimmed === "admin@sekolah.is";
+
+    if (selectedRole === 'guru' && isSpecialAdminEmail) {
+      toast.error("Akses ditolak: Akun Administrator tidak diizinkan masuk melalui menu Guru.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: emailTrimmed,
         password,
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
+
+      // Dynamically verify user's role from profile
+      if (authData.user) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', authData.user.id)
+          .single();
+
+        const actualRole = profile?.role || (isSpecialAdminEmail ? 'admin' : 'guru');
+
+        if (selectedRole === 'guru' && actualRole === 'admin') {
+          await supabase.auth.signOut();
+          throw new Error("Akses ditolak: Akun Administrator tidak diizinkan masuk melalui menu Guru.");
+        }
+
+        if (selectedRole === 'admin' && actualRole === 'guru') {
+          await supabase.auth.signOut();
+          throw new Error("Akses ditolak: Akun Guru/Pengajar tidak diizinkan masuk melalui menu Administrator.");
+        }
+      }
+
       toast.success("Berhasil masuk!");
     } catch (error: any) {
       toast.error(error.message || "Terjadi kesalahan. Silakan coba lagi.");
@@ -66,16 +117,49 @@ export default function Login() {
             </CardDescription>
           </CardHeader>
           
+          {/* Role Choice Selector */}
+          <div className="px-6 pb-2">
+            <Label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">
+              Pilih Peran Masuk (Role)
+            </Label>
+            <div className="grid grid-cols-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200/60">
+              <button
+                type="button"
+                onClick={() => setSelectedRole('admin')}
+                className={`flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black transition-all ${
+                  selectedRole === 'admin'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Shield size={14} className={selectedRole === 'admin' ? "animate-bounce" : ""} />
+                ADMINISTRATOR
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRole('guru')}
+                className={`flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black transition-all ${
+                  selectedRole === 'guru'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <GraduationCap size={15} className={selectedRole === 'guru' ? "animate-bounce" : ""} />
+                GURU / PENGAJAR
+              </button>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email {selectedRole === 'admin' ? 'Admin' : 'Guru'}</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                     <Input 
                       id="email" 
                       type="email" 
-                      placeholder="email@anda.id" 
+                      placeholder={selectedRole === 'admin' ? 'admin@sekolah.id' : 'nama.guru@sekolah.id'} 
                       className="pl-10 h-11" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -103,8 +187,10 @@ export default function Login() {
               </CardContent>
               <CardFooter className="flex flex-col gap-4">
                 <Button className="w-full bg-blue-600 hover:bg-blue-700 h-11 text-white font-semibold" disabled={loading}>
-                  {loading ? "Memproses..." : "Masuk ke Sistem"}
+                  {loading ? "Memproses..." : `Masuk Sebagai ${selectedRole === 'admin' ? 'Admin' : 'Guru'}`}
                 </Button>
+                
+                
               </CardFooter>
             </form>
           </Card>

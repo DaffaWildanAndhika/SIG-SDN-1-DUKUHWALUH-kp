@@ -157,7 +157,12 @@ export default function Agenda() {
           .update(payload)
           .eq('id', selectedAgenda.id);
         if (error) throw error;
-        await logActivity("Mengubah Agenda Sekolah", `Mengubah agenda ${payload.title} untuk tanggal ${payload.event_date}`);
+        await logActivity(
+          "Mengubah Agenda Sekolah", 
+          `Mengubah agenda ${payload.title} untuk tanggal ${payload.event_date}`,
+          selectedAgenda,
+          payload
+        );
         toast.success("Agenda diperbarui");
       } else {
         const { error } = await supabase

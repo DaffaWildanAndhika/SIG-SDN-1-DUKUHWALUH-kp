@@ -9,7 +9,9 @@ import {
   Activity,
   UserCheck,
   ShieldAlert,
-  Trash2
+  Trash2,
+  Calendar,
+  X
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,8 +26,65 @@ interface ActivityLog {
   user_role: string;
   action: string;
   details: string;
+  prev_data?: any;
+  new_data?: any;
   created_at: string;
 }
+
+const getChangedFields = (prev: any, current: any) => {
+  if (!prev || !current) return [];
+  const changes: { field: string; from: any; to: any }[] = [];
+  
+  const fieldTranslations: Record<string, string> = {
+    full_name: "Nama Lengkap",
+    email: "Email Utama",
+    nip: "NIP",
+    gender: "Jenis Kelamin",
+    subject: "Mata Pelajaran",
+    phone: "Nomor Telepon",
+    address: "Alamat Lengkap",
+    is_active: "Status Keaktifan",
+    name: "Nama",
+    academic_year: "Tahun Ajaran",
+    academic_semester: "Semester",
+    class_id: "ID Kelas",
+    wali_kelas_id: "Wali Kelas",
+    title: "Judul Agenda/Event",
+    description: "Deskripsi",
+    event_date: "Tanggal Agenda",
+    start_time: "Jam Mulai",
+    end_time: "Jam Selesai",
+    location: "Lokasi / Ruangan",
+    category: "Kategori",
+    day: "Hari",
+    shift: "Shift Piket",
+    teacher_id: "ID Guru",
+    guru_id: "ID Guru",
+    nis: "NIS Siswa",
+  };
+
+  try {
+    const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(current)]));
+    
+    for (const key of keys) {
+      if (["id", "created_at", "updated_at", "creator_id", "user_id", "password", "avatar_url"].includes(key)) continue;
+
+      const valPrev = prev[key];
+      const valCurr = current[key];
+
+      if (JSON.stringify(valPrev) !== JSON.stringify(valCurr) && valCurr !== undefined) {
+        changes.push({
+          field: fieldTranslations[key] || key,
+          from: valPrev === null || valPrev === undefined || valPrev === "" ? "-" : String(valPrev),
+          to: valCurr === null || valCurr === undefined || valCurr === "" ? "-" : String(valCurr),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Error parsing diff comparison:", e);
+  }
+  return changes;
+};
 
 export default function ActivityLogs() {
   const [logs, setLogs] = useState<ActivityLog[]>(() => {
@@ -42,6 +101,8 @@ export default function ActivityLogs() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [actionFilter, setActionFilter] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const fetchLogs = async () => {
     if (logs.length === 0) {
@@ -126,6 +187,7 @@ export default function ActivityLogs() {
     const action = log.action || "";
     const details = log.details || "";
     const role = log.user_role || "";
+    const logDate = log.created_at ? new Date(log.created_at) : null;
 
     const matchesSearch = 
       actor.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -140,7 +202,23 @@ export default function ActivityLogs() {
       (actionFilter === "ubah" && action.includes("Mengubah")) ||
       (actionFilter === "hapus" && action.includes("Menghapus"));
 
-    return matchesSearch && matchesActionType && matchesRole;
+    let matchesDate = true;
+    if (logDate && !isNaN(logDate.getTime())) {
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        matchesDate = matchesDate && logDate >= start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && logDate <= end;
+      }
+    } else if (startDate || endDate) {
+      matchesDate = false; // If log has no valid date but filters are set, exclude it
+    }
+
+    return matchesSearch && matchesActionType && matchesRole && matchesDate;
   });
 
   const clearLogs = async () => {
@@ -235,46 +313,88 @@ export default function ActivityLogs() {
 
         {/* Filters and List in 3 column layout */}
         <div className="lg:col-span-3 space-y-6">
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/60 flex flex-col md:flex-row gap-4 items-center">
-            {/* Search Input */}
-            <div className="relative flex-1 w-full">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <Input 
-                type="text"
-                placeholder="Cari pelaku, kata aksi, atau detail log..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="h-12 pl-12 bg-[#F8FAFC] border-none rounded-2xl font-bold text-slate-600 focus-visible:ring-blue-500 w-full text-sm"
-              />
-            </div>
-            
-            {/* Filter by Role */}
-            <div className="w-full md:w-auto shrink-0 flex items-center gap-2">
-              <Filter className="text-slate-400 hidden md:flex" size={16} />
-              <select
-                value={roleFilter}
-                onChange={e => setRoleFilter(e.target.value)}
-                className="h-12 px-4 rounded-2xl bg-[#F8FAFC] border-none font-bold text-slate-600 focus:outline-none text-sm w-full md:w-44"
-              >
-                <option value="all">Semua Akun</option>
-                <option value="guru">Hanya Guru</option>
-                <option value="admin">Hanya Admin</option>
-              </select>
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/60 space-y-4">
+            <div className="flex flex-col xl:flex-row gap-4 items-center">
+              {/* Search Input */}
+              <div className="relative flex-1 w-full">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Input 
+                  type="text"
+                  placeholder="Cari pelaku, kata aksi, atau detail log..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="h-12 pl-12 bg-[#F8FAFC] border-none rounded-2xl font-bold text-slate-600 focus-visible:ring-blue-500 w-full text-sm"
+                />
+              </div>
+              
+              {/* Filter by Role */}
+              <div className="w-full xl:w-auto shrink-0 flex items-center gap-2">
+                <Filter className="text-slate-400 hidden xl:flex" size={16} />
+                <select
+                  value={roleFilter}
+                  onChange={e => setRoleFilter(e.target.value)}
+                  className="h-12 px-4 rounded-2xl bg-[#F8FAFC] border-none font-bold text-slate-600 focus:outline-none text-sm w-full xl:w-44"
+                >
+                  <option value="all">Semua Akun</option>
+                  <option value="guru">Hanya Guru</option>
+                  <option value="admin">Hanya Admin</option>
+                </select>
+              </div>
+
+              {/* Filter by Action Type */}
+              <div className="w-full xl:w-auto shrink-0 flex items-center gap-2">
+                <Filter className="text-slate-400 hidden xl:flex" size={16} />
+                <select
+                  value={actionFilter}
+                  onChange={e => setActionFilter(e.target.value)}
+                  className="h-12 px-4 rounded-2xl bg-[#F8FAFC] border-none font-bold text-slate-600 focus:outline-none text-sm w-full xl:w-56"
+                >
+                  <option value="all">Semua Tipe Aksi</option>
+                  <option value="tambah">Penambahan / Input</option>
+                  <option value="ubah">Perubahan / Edit</option>
+                  <option value="hapus">Penghapusan / Delete</option>
+                </select>
+              </div>
             </div>
 
-            {/* Filter by Action Type */}
-            <div className="w-full md:w-auto shrink-0 flex items-center gap-2">
-              <Filter className="text-slate-400 hidden md:flex" size={16} />
-              <select
-                value={actionFilter}
-                onChange={e => setActionFilter(e.target.value)}
-                className="h-12 px-4 rounded-2xl bg-[#F8FAFC] border-none font-bold text-slate-600 focus:outline-none text-sm w-full md:w-56"
-              >
-                <option value="all">Semua Tipe Aksi</option>
-                <option value="tambah">Penambahan / Input</option>
-                <option value="ubah">Perubahan / Edit</option>
-                <option value="hapus">Penghapusan / Delete</option>
-              </select>
+            {/* Date Filter Panel */}
+            <div className="pt-4 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
+                <div className="flex items-center gap-2 text-slate-500 text-xs font-bold shrink-0 uppercase tracking-wider">
+                  <Calendar size={14} className="text-slate-400" />
+                  Rentang Tanggal:
+                </div>
+                
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Input 
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="h-10 px-3 bg-[#F8FAFC] border-none rounded-xl font-bold text-slate-600 text-xs focus-visible:ring-blue-500 w-full sm:w-36 cursor-pointer"
+                  />
+                  <span className="text-slate-300 font-bold text-xs-no-wrap">s/d</span>
+                  <Input 
+                    type="date"
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    className="h-10 px-3 bg-[#F8FAFC] border-none rounded-xl font-bold text-slate-600 text-xs focus-visible:ring-blue-500 w-full sm:w-36 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {(startDate || endDate) && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                  }}
+                  className="h-10 px-4 rounded-xl text-xs font-black text-red-500 hover:text-red-700 hover:bg-red-50 flex items-center gap-1.5 transition-all self-end md:self-auto"
+                >
+                  <X size={14} />
+                  Hapus Filter Tanggal
+                </Button>
+              )}
             </div>
           </div>
 
@@ -310,7 +430,7 @@ export default function ActivityLogs() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="p-6 md:px-8 hover:bg-slate-50/70 transition-colors flex flex-col md:flex-row gap-4 items-start justify-between"
+                        className="p-6 md:px-8 hover:bg-slate-50/70 transition-colors flex flex-col xl:flex-row gap-4 items-start justify-between"
                       >
                         <div className="flex gap-4 items-start flex-1 min-w-0 w-full">
                           <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 mt-0.5">
@@ -327,6 +447,32 @@ export default function ActivityLogs() {
                             {/* Details Descriptions */}
                             <p className="text-xs text-slate-500 font-semibold leading-relaxed break-words">{log.details}</p>
 
+                            {/* Comparison block of edited fields */}
+                            {log.prev_data && log.new_data && getChangedFields(log.prev_data, log.new_data).length > 0 && (
+                              <div className="mt-3 bg-slate-50/80 rounded-2xl border border-slate-100 p-4 space-y-2 max-w-2xl">
+                                <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider flex items-center gap-1.5 mb-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                  Detail Perubahan Nilai:
+                                </span>
+                                <div className="space-y-2 divide-y divide-slate-100">
+                                  {getChangedFields(log.prev_data, log.new_data).map((change, idx) => (
+                                    <div key={idx} className="pt-2 first:pt-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+                                      <span className="font-bold text-slate-600 text-[11px] sm:w-1/3">{change.field}</span>
+                                      <div className="flex flex-wrap items-center gap-1.5 sm:w-2/3">
+                                        <span className="px-2 py-0.5 text-[10px] font-medium text-red-600 line-through bg-red-50 rounded font-mono border border-red-100/50 max-w-[200px] truncate">
+                                          {change.from}
+                                        </span>
+                                        <span className="text-slate-400 font-bold">➔</span>
+                                        <span className="px-2 py-0.5 text-[10px] font-black text-emerald-700 bg-emerald-50 rounded font-mono border border-emerald-100/50 max-w-[200px] truncate">
+                                          {change.to}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
                             {/* Prominent Account Information */}
                             <div className="flex flex-wrap items-center gap-1.5 mt-2 bg-slate-50 border border-slate-100/80 rounded-xl px-3 py-1.5 w-fit">
                               <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Akun Pelaku:</span>
@@ -339,7 +485,7 @@ export default function ActivityLogs() {
                         </div>
 
                         {/* Timestamp Info */}
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 md:self-center shrink-0 mt-2 md:mt-0">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 xl:self-center shrink-0 mt-2 xl:mt-0">
                           <Clock size={13} className="text-slate-300" />
                           <span>{formatDateTime(log.created_at)}</span>
                         </div>
