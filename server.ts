@@ -33,7 +33,7 @@ async function startServer() {
 
   // Endpoint to save action log
   app.post("/api/activity-logs", (req, res) => {
-    const { user_id, user_fullname, user_role, action, details, prev_data, new_data } = req.body;
+    const { user_id, user_fullname, user_role, action, details } = req.body;
     try {
       let logs: any[] = [];
       try {
@@ -56,8 +56,6 @@ async function startServer() {
         user_role: user_role || "guru",
         action: action || "Aksi",
         details: details || "",
-        prev_data: prev_data || null,
-        new_data: new_data || null,
         created_at: new Date().toISOString()
       };
 
@@ -163,7 +161,6 @@ async function startServer() {
               full_name, 
               role, 
               email,
-              avatar_url: password,
               is_active: true,
               first_login: true
             }]);
@@ -177,7 +174,6 @@ async function startServer() {
                 full_name, 
                 role, 
                 email,
-                avatar_url: password,
                 is_active: true
               }]);
             if (fallbackError) throw fallbackError;
@@ -191,7 +187,6 @@ async function startServer() {
               full_name, 
               role, 
               email,
-              avatar_url: password,
               is_active: true
             }]);
         }
@@ -269,19 +264,19 @@ async function startServer() {
       }
 
       // 2. Update profiles table
-      const updateFields: any = {};
-      if (full_name !== undefined) updateFields.full_name = full_name;
-      if (email !== undefined) updateFields.email = email;
-      if (role !== undefined) updateFields.role = role;
-      if (nip !== undefined) updateFields.nip = nip;
-      if (gender !== undefined) updateFields.gender = gender;
-      if (subject !== undefined) updateFields.subject = subject;
-      if (phone !== undefined) updateFields.phone = phone;
-      if (address !== undefined) updateFields.address = address;
-      if (is_active !== undefined) updateFields.is_active = is_active;
+      const updateFields: any = {
+        full_name,
+        email,
+        role,
+        nip,
+        gender,
+        subject,
+        phone,
+        address,
+        is_active: is_active ?? true
+      };
 
       if (password) {
-        updateFields.avatar_url = password; // store plain-text password so admin can view it
         updateFields.first_login = true;
       }
 

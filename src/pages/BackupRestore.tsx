@@ -20,7 +20,7 @@ import {
   validateBackupSchema,
   performRestore,
   BackupData
-} from "@/lib/BackupService";
+} from "@/lib/backup-service";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 export default function BackupRestore() {
