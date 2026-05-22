@@ -155,7 +155,7 @@ export default function JadwalMengajar() {
     try {
       const [gurus, classes] = await Promise.all([
         supabase.from('profiles').select('id, full_name').eq('role', 'guru').order('full_name'),
-        supabase.from('classes').select('id, name, academic_year').order('name')
+        supabase.from('classes').select('id, name, academic_year, wali_kelas_id').order('name')
       ]);
       
       if (gurus.error) throw gurus.error;
@@ -235,6 +235,14 @@ export default function JadwalMengajar() {
     if (!finalGuruId || !formData.class_id) {
       toast.error("Silakan pilih guru dan kelas");
       return;
+    }
+
+    if (!isAdmin) {
+      const selectedCls = classList.find(c => c.id === formData.class_id);
+      if (!selectedCls || selectedCls.wali_kelas_id !== currentUser?.id) {
+        toast.error("Anda hanya dapat menambahkan jadwal mengajar untuk kelas di mana Anda terdaftar sebagai Wali Kelas.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -446,6 +454,11 @@ export default function JadwalMengajar() {
 
   const activeClasses = classList.filter(c => c.academic_year === selectedYear);
 
+  const isUserAdmin = userRole === "admin" || currentUser?.email?.includes("admin@sekolah");
+  const dialogClasses = isUserAdmin 
+    ? activeClasses 
+    : activeClasses.filter(c => c.wali_kelas_id === currentUser?.id);
+
   const colors = ["bg-blue-600", "bg-indigo-600", "bg-violet-600"];
 
   const getWeekMaterial = (scheduleId: string) => {
@@ -554,6 +567,15 @@ export default function JadwalMengajar() {
                 </SelectContent>
               </Select>
             )}
+
+            <Button 
+                onClick={handleBulkFill} 
+                disabled={loading || schedules.length === 0}
+                className="h-12 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-black shadow-lg shadow-indigo-200 rounded-xl transition-all flex items-center gap-2 group flex-1 md:flex-none"
+              >
+                <CalendarDays size={18} className="group-hover:-translate-y-0.5 transition-transform duration-300 text-indigo-200" /> 
+                <span>Isi 20 Minggu</span>
+              </Button>
 
             <Button 
                 onClick={() => { setSelectedSchedule(null); setIsDialogOpen(true); }} 
@@ -926,16 +948,16 @@ export default function JadwalMengajar() {
                   onValueChange={(val) => setFormData({ ...formData, class_id: val })}
                 >
                   <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500">
-                    <SelectValue placeholder={activeClasses.length === 0 ? "Belum ada data" : "Pilih Kelas"} />
+                    <SelectValue placeholder={dialogClasses.length === 0 ? (isUserAdmin ? "Belum ada data" : "Anda bukan Wali Kelas") : "Pilih Kelas"} />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-slate-100 shadow-xl">
-                    {activeClasses.length > 0 ? (
-                      activeClasses.map(cls => (
+                    {dialogClasses.length > 0 ? (
+                      dialogClasses.map(cls => (
                         <SelectItem key={cls.id} value={cls.id} className="font-bold py-3">{cls.name}</SelectItem>
                       ))
                     ) : (
-                      <SelectItem value="none" disabled className="font-bold">
-                        Belum ada data kelas
+                      <SelectItem value="none" disabled className="font-bold text-slate-400">
+                        {isUserAdmin ? "Belum ada data kelas" : "Anda bukan Wali Kelas di kelas manapun"}
                       </SelectItem>
                     )}
                   </SelectContent>

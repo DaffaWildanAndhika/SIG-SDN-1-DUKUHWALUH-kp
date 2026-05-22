@@ -1,5 +1,16 @@
 [
   {
+    "id": "f0r95r58e_1779429438993",
+    "user_id": "d1c3d9b8-0d73-4933-acfc-1e79aaac0fa6",
+    "user_fullname": "abimanyu S.Pd",
+    "user_role": "guru",
+    "action": "Pengisian Otomatis Progres Mengajar",
+    "details": "Mengisi otomatis progres mengajar 20 minggu untuk seluruh jadwal",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-05-22T05:57:18.993Z"
+  },
+  {
     "id": "jbpce0ru7_1779427349932",
     "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
     "user_fullname": "Administrator",
