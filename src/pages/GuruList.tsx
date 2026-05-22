@@ -224,6 +224,15 @@ export default function GuruList() {
     e.preventDefault();
     setLoading(true);
     try {
+      // Helper to clean and format NIP safely
+      const cleanNip = (val: string) => {
+        if (!val) return null;
+        const trimmed = val.trim();
+        return trimmed !== "" ? trimmed : null;
+      };
+
+      const targetNip = cleanNip(formData.nip);
+
       if (selectedGuru) {
         // Update existing guru via Admin Update API
         let apiSuccess = false;
@@ -239,11 +248,11 @@ export default function GuruList() {
               password: formData.password || undefined, // only update password if provided
               full_name: formData.full_name,
               role: selectedGuru.role || "guru",
-              nip: formData.nip,
+              nip: targetNip,
               gender: formData.gender,
               subject: formData.subject,
-              phone: formData.phone,
-              address: formData.address,
+              phone: formData.phone || null,
+              address: formData.address || null,
               is_active: formData.is_active
             })
           });
@@ -272,11 +281,11 @@ export default function GuruList() {
         if (!apiSuccess) {
           const updateFields: any = {
             full_name: formData.full_name,
-            nip: formData.nip,
+            nip: targetNip,
             gender: formData.gender,
             subject: formData.subject,
-            phone: formData.phone,
-            address: formData.address,
+            phone: formData.phone || null,
+            address: formData.address || null,
             is_active: formData.is_active
           };
 
@@ -345,11 +354,11 @@ export default function GuruList() {
               full_name: formData.full_name,
               email: formData.email,
               role: "guru",
-              nip: formData.nip,
+              nip: targetNip,
               gender: formData.gender,
               subject: formData.subject,
-              phone: formData.phone,
-              address: formData.address,
+              phone: formData.phone || null,
+              address: formData.address || null,
               is_active: formData.is_active
             }], { onConflict: 'id' });
             
@@ -358,19 +367,20 @@ export default function GuruList() {
             await supabase
               .from('profiles')
               .update({
-                nip: formData.nip,
+                nip: targetNip,
                 gender: formData.gender,
                 subject: formData.subject,
-                phone: formData.phone,
-                address: formData.address,
+                phone: formData.phone || null,
+                address: formData.address || null,
                 is_active: formData.is_active
               })
               .eq('id', result.user.id);
           }
         } else {
-          // Attempt client-side fallback creation using a non-persisted, isolated client
-          // This prevents logging out the current admin session!
-          console.log("Attempting direct client-side register fallback with isolated client...");
+          // Attempt client-side fallback creation using a pure fetch REST API request
+          // This absolutely bypasses GoTrue client initialization, BroadcastChannel syncing, 
+          // and LocalStorage listeners – entirely preventing the admin from being signed out!
+          console.log("Attempting direct client-side register fallback via direct REST fetch...");
           
           const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
           const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -379,99 +389,93 @@ export default function GuruList() {
             throw new Error("Kredensial Supabase tidak ditemukan di klien.");
           }
 
-          const tempSupabase = createClient(supabaseUrl, supabaseAnonKey, {
-            auth: {
-              persistSession: false,
-              autoRefreshToken: false,
-              detectSessionInUrl: false
-            }
-          });
-
-          const { data: signUpData, error: signUpError } = await tempSupabase.auth.signUp({
-            email: formData.email,
-            password: formData.password,
-            options: {
+          // Directly call Supabase REST API signup
+          const res = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": supabaseAnonKey,
+              "Authorization": `Bearer ${supabaseAnonKey}`
+            },
+            body: JSON.stringify({
+              email: formData.email,
+              password: formData.password,
               data: {
                 full_name: formData.full_name,
                 role: "guru"
               }
-            }
+            })
           });
 
-          if (signUpError) {
-            throw new Error(`Gagal (API: ${apiError || 'Tidak tersedia'} / Auth: ${signUpError.message})`);
+          const signUpText = await res.text();
+          let signUpData: any = {};
+          if (signUpText) {
+            try {
+              signUpData = JSON.parse(signUpText);
+            } catch (err) {
+              console.error("Format parsing error on Fallback Sign Up:", signUpText);
+            }
           }
 
-          if (signUpData?.user?.id) {
+          if (!res.ok) {
+            const innerErrorMsg = signUpData?.msg || signUpData?.error_description || signUpData?.error || "Gagal mendaftarkan akun di Supabase Auth (Fallback)";
+            throw new Error(`Gagal (API: ${apiError || 'Tidak tersedia'} / Auth: ${innerErrorMsg})`);
+          }
+
+          const fallbackUserId = signUpData?.user?.id || signUpData?.id;
+
+          if (fallbackUserId) {
             const profilePayload = {
-              id: signUpData.user.id,
+              id: fallbackUserId,
               full_name: formData.full_name,
               email: formData.email,
               role: "guru",
-              nip: formData.nip,
+              nip: targetNip,
               gender: formData.gender,
               subject: formData.subject,
-              phone: formData.phone,
-              address: formData.address,
+              phone: formData.phone || null,
+              address: formData.address || null,
               is_active: formData.is_active
             };
 
+            // Double security: Upsert values via the main authenticated client (Admin)
             let profileCreated = false;
             let errorMsg = "";
 
-            // 1. Try upserting / inserting using the temporary client first (in case RLS permits new self-registered users)
             try {
-              const { error: tempInsertError } = await tempSupabase
+              const { error: mainInsertError } = await supabase
                 .from('profiles')
                 .upsert([profilePayload], { onConflict: 'id' });
 
-              if (!tempInsertError) {
+              if (!mainInsertError) {
                 profileCreated = true;
-                console.log("Profile created successfully via isolated temp client.");
+                console.log("Profile created successfully via main authenticated admin client.");
               } else {
-                errorMsg += `Temp client: ${tempInsertError.message}. `;
-              }
-            } catch (tempErr: any) {
-              errorMsg += `Temp client throw: ${tempErr.message}. `;
-            }
-
-            // 2. Fall back to using the main authenticated client (which is the logged-in administrator)
-            if (!profileCreated) {
-              try {
-                const { error: mainInsertError } = await supabase
+                errorMsg += `Main client: ${mainInsertError.message}. `;
+                // Try standard insert fallback
+                const { error: fallbackInsertError } = await supabase
                   .from('profiles')
-                  .upsert([profilePayload], { onConflict: 'id' });
-
-                if (!mainInsertError) {
+                  .insert([profilePayload]);
+                
+                if (!fallbackInsertError) {
                   profileCreated = true;
-                  console.log("Profile created successfully via main authenticated admin client.");
+                  console.log("Profile created via main authenticated client fallback insert.");
                 } else {
-                  errorMsg += `Main client: ${mainInsertError.message}. `;
-                  // Try standard insert fallback
-                  const { error: fallbackInsertError } = await supabase
-                    .from('profiles')
-                    .insert([profilePayload]);
-                  
-                  if (!fallbackInsertError) {
-                    profileCreated = true;
-                    console.log("Profile created via main authenticated client fallback insert.");
-                  } else {
-                    errorMsg += `Main fallback insert: ${fallbackInsertError.message}.`;
-                  }
+                  errorMsg += `Main fallback insert: ${fallbackInsertError.message}.`;
                 }
-              } catch (mainErr: any) {
-                errorMsg += `Main client throw: ${mainErr.message}. `;
               }
+            } catch (mainErr: any) {
+              errorMsg += `Main client exception: ${mainErr.message}. `;
             }
 
             if (!profileCreated) {
               console.warn("Could not insert profile automatically, errors: ", errorMsg);
-              throw new Error(`Akun auth berhasil dibuat, tetapi gagal menginisialisasi baris data profil guru karena pembatasan keamanan RLS. Detail: ${errorMsg}`);
+              throw new Error(`Akun auth berhasil dibuat, tetapi gagal menginisialisasi barit data profil guru karena pembatasan keamanan RLS. Detail: ${errorMsg}`);
             }
 
-            toast.info("Akun & Profil berhasil dibuat langsung via fallback Auth!");
+            toast.info("Akun & Profil berhasil dibuat langsung via fallback REST Auth!");
           } else {
-            throw new Error(apiError || "Gagal membuat akun guru");
+            throw new Error(apiError || "Gagal membuat akun guru: ID user tidak dikembalikan");
           }
         }
 
