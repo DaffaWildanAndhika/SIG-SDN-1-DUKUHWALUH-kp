@@ -57,6 +57,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import { motion, AnimatePresence } from "motion/react";
 import { logActivity } from "@/lib/activityLogger";
 import * as XLSX from 'xlsx';
@@ -367,9 +368,26 @@ export default function GuruList() {
               .eq('id', result.user.id);
           }
         } else {
-          // Attempt client-side fallback creation
-          console.log("Attempting direct client-side register fallback...");
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          // Attempt client-side fallback creation using a non-persisted, isolated client
+          // This prevents logging out the current admin session!
+          console.log("Attempting direct client-side register fallback with isolated client...");
+          
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          
+          if (!supabaseUrl || !supabaseAnonKey) {
+            throw new Error("Kredensial Supabase tidak ditemukan di klien.");
+          }
+
+          const tempSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false
+            }
+          });
+
+          const { data: signUpData, error: signUpError } = await tempSupabase.auth.signUp({
             email: formData.email,
             password: formData.password,
             options: {
@@ -385,38 +403,73 @@ export default function GuruList() {
           }
 
           if (signUpData?.user?.id) {
-            // Direct upsert of the profile to guarantee records existence
-            const { error: pError } = await supabase
-              .from('profiles')
-              .upsert([{
-                id: signUpData.user.id,
-                full_name: formData.full_name,
-                email: formData.email,
-                role: "guru",
-                nip: formData.nip,
-                gender: formData.gender,
-                subject: formData.subject,
-                phone: formData.phone,
-                address: formData.address,
-                is_active: formData.is_active
-              }], { onConflict: 'id' });
+            const profilePayload = {
+              id: signUpData.user.id,
+              full_name: formData.full_name,
+              email: formData.email,
+              role: "guru",
+              nip: formData.nip,
+              gender: formData.gender,
+              subject: formData.subject,
+              phone: formData.phone,
+              address: formData.address,
+              is_active: formData.is_active
+            };
 
-            if (pError) {
-              console.warn("Direct upsert failed, trying fallback insert:", pError.message);
-              await supabase.from('profiles').insert([{
-                id: signUpData.user.id,
-                full_name: formData.full_name,
-                email: formData.email,
-                role: "guru",
-                nip: formData.nip,
-                gender: formData.gender,
-                subject: formData.subject,
-                phone: formData.phone,
-                address: formData.address,
-                is_active: formData.is_active
-              }]);
+            let profileCreated = false;
+            let errorMsg = "";
+
+            // 1. Try upserting / inserting using the temporary client first (in case RLS permits new self-registered users)
+            try {
+              const { error: tempInsertError } = await tempSupabase
+                .from('profiles')
+                .upsert([profilePayload], { onConflict: 'id' });
+
+              if (!tempInsertError) {
+                profileCreated = true;
+                console.log("Profile created successfully via isolated temp client.");
+              } else {
+                errorMsg += `Temp client: ${tempInsertError.message}. `;
+              }
+            } catch (tempErr: any) {
+              errorMsg += `Temp client throw: ${tempErr.message}. `;
             }
-            toast.info("Akun dibuat langsung via Auth (Koneksi API Admin dilewati)");
+
+            // 2. Fall back to using the main authenticated client (which is the logged-in administrator)
+            if (!profileCreated) {
+              try {
+                const { error: mainInsertError } = await supabase
+                  .from('profiles')
+                  .upsert([profilePayload], { onConflict: 'id' });
+
+                if (!mainInsertError) {
+                  profileCreated = true;
+                  console.log("Profile created successfully via main authenticated admin client.");
+                } else {
+                  errorMsg += `Main client: ${mainInsertError.message}. `;
+                  // Try standard insert fallback
+                  const { error: fallbackInsertError } = await supabase
+                    .from('profiles')
+                    .insert([profilePayload]);
+                  
+                  if (!fallbackInsertError) {
+                    profileCreated = true;
+                    console.log("Profile created via main authenticated client fallback insert.");
+                  } else {
+                    errorMsg += `Main fallback insert: ${fallbackInsertError.message}.`;
+                  }
+                }
+              } catch (mainErr: any) {
+                errorMsg += `Main client throw: ${mainErr.message}. `;
+              }
+            }
+
+            if (!profileCreated) {
+              console.warn("Could not insert profile automatically, errors: ", errorMsg);
+              throw new Error(`Akun auth berhasil dibuat, tetapi gagal menginisialisasi baris data profil guru karena pembatasan keamanan RLS. Detail: ${errorMsg}`);
+            }
+
+            toast.info("Akun & Profil berhasil dibuat langsung via fallback Auth!");
           } else {
             throw new Error(apiError || "Gagal membuat akun guru");
           }
