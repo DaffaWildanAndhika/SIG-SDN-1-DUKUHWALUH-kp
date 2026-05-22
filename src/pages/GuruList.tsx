@@ -336,20 +336,36 @@ export default function GuruList() {
         }
 
         if (apiSuccess && result?.user?.id) {
-          // Update profile with remaining fields since Admin API might only do basic insert
+          // Use upsert to guarantee that the record is created with all details
           const { error: patchError } = await supabase
             .from('profiles')
-            .update({
+            .upsert([{
+              id: result.user.id,
+              full_name: formData.full_name,
+              email: formData.email,
+              role: "guru",
               nip: formData.nip,
               gender: formData.gender,
               subject: formData.subject,
               phone: formData.phone,
               address: formData.address,
               is_active: formData.is_active
-            })
-            .eq('id', result.user.id);
+            }], { onConflict: 'id' });
             
-          if (patchError) console.warn("Note: Profile patch failed", patchError.message);
+          if (patchError) {
+            console.warn("Note: Profile upsert failed, trying update fallback", patchError.message);
+            await supabase
+              .from('profiles')
+              .update({
+                nip: formData.nip,
+                gender: formData.gender,
+                subject: formData.subject,
+                phone: formData.phone,
+                address: formData.address,
+                is_active: formData.is_active
+              })
+              .eq('id', result.user.id);
+          }
         } else {
           // Attempt client-side fallback creation
           console.log("Attempting direct client-side register fallback...");
@@ -359,8 +375,7 @@ export default function GuruList() {
             options: {
               data: {
                 full_name: formData.full_name,
-                role: "guru",
-                first_login: true
+                role: "guru"
               }
             }
           });
@@ -370,22 +385,24 @@ export default function GuruList() {
           }
 
           if (signUpData?.user?.id) {
-            // Update profile fields
+            // Direct upsert of the profile to guarantee records existence
             const { error: pError } = await supabase
               .from('profiles')
-              .update({
+              .upsert([{
+                id: signUpData.user.id,
+                full_name: formData.full_name,
+                email: formData.email,
+                role: "guru",
                 nip: formData.nip,
                 gender: formData.gender,
                 subject: formData.subject,
                 phone: formData.phone,
                 address: formData.address,
-                is_active: formData.is_active,
-                first_login: true
-              })
-              .eq('id', signUpData.user.id);
+                is_active: formData.is_active
+              }], { onConflict: 'id' });
 
             if (pError) {
-              // Try direct insertion
+              console.warn("Direct upsert failed, trying fallback insert:", pError.message);
               await supabase.from('profiles').insert([{
                 id: signUpData.user.id,
                 full_name: formData.full_name,
@@ -396,8 +413,7 @@ export default function GuruList() {
                 subject: formData.subject,
                 phone: formData.phone,
                 address: formData.address,
-                is_active: formData.is_active,
-                first_login: true
+                is_active: formData.is_active
               }]);
             }
             toast.info("Akun dibuat langsung via Auth (Koneksi API Admin dilewati)");
