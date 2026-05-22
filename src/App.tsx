@@ -36,7 +36,6 @@ import NilaiSiswa from "./pages/NilaiSiswa";
 import Login from "./pages/Login";
 import ActivityLogs from "./pages/ActivityLogs";
 import BackupRestore from "./pages/BackupRestore";
-import ChangePassword from "./pages/ChangePassword";
 
 const SidebarItem = ({ to, icon: Icon, label, active, collapsed }: { to: string, icon: any, label: string, active: boolean, collapsed: boolean }) => (
   <Link to={to} className="block group">
@@ -196,7 +195,7 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
             <div className={`flex items-center gap-3 ${!isSidebarOpen && !isMobileMenuOpen ? 'mx-auto' : ''}`}>
               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shrink-0 overflow-hidden relative shadow-lg shadow-blue-600/20">
                 <img 
-                  src="/logo.jpg" 
+                  src="/logo_sekolah.png" 
                   alt="School Logo" 
                   className="absolute inset-0 w-full h-full object-contain bg-blue-600 z-10"
                   onError={(e) => {
@@ -469,22 +468,14 @@ export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [appRole, setAppRole] = useState<string>("");
-  const [firstLogin, setFirstLogin] = useState<boolean>(false);
 
   const user = session?.user;
-  const isFirstLogin = user?.user_metadata?.first_login === true || user?.user_metadata?.first_login === "true" || firstLogin;
+  const isFirstLogin = false;
 
   useEffect(() => {
     if (user?.id) {
-      // Synchronously set firstLogin from metadata first to avoid render-timing/race issues
-      const metaFirst = user?.user_metadata?.first_login;
-      const isFirst = metaFirst === true || metaFirst === "true";
-      setFirstLogin(isFirst);
-
-      const fetchAppRoleAndFirstLogin = async () => {
+      const fetchAppRole = async () => {
         try {
-          // If first_login column is missing in profile table, the query might return an error structure.
-          // Therefore, we query 'role' first safely, which is guaranteed to succeed.
           const { data: roleData } = await supabase
             .from('profiles')
             .select('role')
@@ -496,27 +487,15 @@ export default function App() {
           } else {
             setAppRole(user?.user_metadata?.role || "guru");
           }
-
-          // Try to query first_login column safely
-          const { data: fullData } = await supabase
-            .from('profiles')
-            .select('first_login')
-            .eq('id', user.id)
-            .single();
-
-          if (fullData && typeof fullData.first_login === 'boolean') {
-            setFirstLogin(fullData.first_login);
-          }
         } catch (err) {
-          console.warn("Error checking table first_login or role, relying on auth fallback:", err);
+          console.warn("Error checking table role, relying on auth fallback:", err);
         }
       };
-      fetchAppRoleAndFirstLogin();
+      fetchAppRole();
     } else {
       setAppRole("");
-      setFirstLogin(false);
     }
-  }, [user?.id, user?.user_metadata?.first_login]);
+  }, [user?.id]);
 
   const isSpecialAdmin = user?.email === "admin@sekolah.is" || user?.email === "admin@sekolah.id";
   const isAdmin = appRole === "admin" || user?.user_metadata?.role === "admin" || isSpecialAdmin;
@@ -572,35 +551,24 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={!session ? <Login /> : (isFirstLogin ? <Navigate to="/change-password" /> : <Navigate to="/" />)} />
-        
-        <Route path="/change-password" element={
-          session ? (
-            <ChangePassword user={session.user} onPasswordChanged={() => setFirstLogin(false)} />
-          ) : (
-            <Navigate to="/login" />
-          )
-        } />
+        <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
+
         
         <Route path="/*" element={
           session ? (
-            isFirstLogin ? (
-              <Navigate to="/change-password" replace />
-            ) : (
-              <Layout user={session.user}>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/guru" element={<GuruList />} />
-                  <Route path="/piket" element={<JadwalPiket />} />
-                  <Route path="/mengajar" element={<JadwalMengajar />} />
-                  <Route path="/kelas" element={<Kelas />} />
-                  <Route path="/pengumuman" element={<Agenda />} />
-                  <Route path="/nilai" element={<NilaiSiswa />} />
-                  <Route path="/logs" element={isAdmin ? <ActivityLogs /> : <Navigate to="/" />} />
-                  <Route path="/backup" element={isAdmin ? <BackupRestore /> : <Navigate to="/" />} />
-                </Routes>
-              </Layout>
-            )
+            <Layout user={session.user}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/guru" element={<GuruList />} />
+                <Route path="/piket" element={<JadwalPiket />} />
+                <Route path="/mengajar" element={<JadwalMengajar />} />
+                <Route path="/kelas" element={<Kelas />} />
+                <Route path="/pengumuman" element={<Agenda />} />
+                <Route path="/nilai" element={<NilaiSiswa />} />
+                <Route path="/logs" element={isAdmin ? <ActivityLogs /> : <Navigate to="/" />} />
+                <Route path="/backup" element={isAdmin ? <BackupRestore /> : <Navigate to="/" />} />
+              </Routes>
+            </Layout>
           ) : (
             <Navigate to="/login" />
           )
