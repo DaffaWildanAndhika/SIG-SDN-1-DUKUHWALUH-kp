@@ -175,7 +175,7 @@ export default function Login() {
         <div className="flex flex-col items-center mb-6">
           <div className="bg-blue-600 p-4 rounded-2xl shadow-xl shadow-blue-200 mb-4 cursor-pointer hover:scale-105 transition-transform flex items-center justify-center overflow-hidden relative w-16 h-16">
             <img 
-              src="/logo_sekolah.png" 
+              src="/logo.jpg" 
               alt="School Logo" 
               className="absolute inset-0 w-full h-full object-contain bg-blue-600 z-10"
               onError={(e) => {
@@ -186,7 +186,7 @@ export default function Login() {
             <School className="text-white" size={32} />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 leading-tight">SDN 1 Dukuhwaluh</h1>
-          <p className="text-slate-500 text-sm">Sistem Informasi Administrasi Guru</p>
+          <p className="text-slate-500 text-sm">Sistem Informasi Akademik Guru</p>
         </div>
 
         <Card className="border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
@@ -279,52 +279,7 @@ export default function Login() {
                   {loading ? "Memproses..." : `Masuk Sebagai ${selectedRole === 'admin' ? 'Admin' : 'Guru'}`}
                 </Button>
                 
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 w-full space-y-3">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
-                    Akun Uji Coba Tersedia:
-                  </p>
-                  
-                  {selectedRole === 'admin' ? (
-                    <button 
-                      type="button"
-                      onClick={() => { setEmail("admin@sekolah.id"); setPassword("admin123"); }}
-                      className="text-[11px] text-slate-600 hover:bg-white hover:shadow-sm p-2.5 rounded-xl transition-all text-left flex items-center justify-between w-full font-bold border border-transparent hover:border-blue-100 bg-slate-100/50"
-                    >
-                      <span className="text-blue-600 flex items-center gap-1">
-                        <Shield size={12} />
-                        Login Admin
-                      </span>
-                      <span className="font-mono text-blue-400">admin@sekolah.id</span>
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      {teachers.length > 0 ? (
-                        teachers.map((teacher, idx) => (
-                          <button 
-                            key={idx}
-                            type="button"
-                            onClick={() => { 
-                              setEmail(teacher.email || ""); 
-                              setPassword(teacher.avatar_url || "guru123"); 
-                            }}
-                            className="text-[11px] text-slate-600 hover:bg-white hover:shadow-sm p-2.5 rounded-xl transition-all text-left flex items-center justify-between w-full font-bold border border-transparent hover:border-blue-100 bg-slate-100/50"
-                          >
-                            <span className="text-blue-600 flex items-center gap-1 min-w-0 max-w-[150px] truncate">
-                              <User size={12} className="shrink-0" />
-                              {teacher.full_name}
-                            </span>
-                            <span className="font-mono text-blue-400 truncate ml-1">{teacher.email}</span>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="text-[11px] text-slate-500 bg-amber-50 border border-amber-100 p-2.5 rounded-xl">
-                          Belum ada data guru. Silakan masuk sebagai <strong>Admin</strong> terlebih dahulu untuk mendaftarkan akun Guru baru.
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                
               </CardFooter>
             </form>
           </Card>
@@ -389,7 +344,7 @@ export default function Login() {
           )}
         
         <p className="mt-8 text-center text-slate-400 text-xs text-balance">
-          Sistem Informasi Administrasi Guru SDN 1 Dukuhwaluh
+          Sistem Informasi Akademik Guru SDN 1 Dukuhwaluh
         </p>
       </div>
     </div>
