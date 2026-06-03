@@ -361,6 +361,10 @@ export default function GuruList() {
             address: formData.address || null,
             is_active: formData.is_active
           };
+          
+          if (formData.password) {
+            updateFields.avatar_url = formData.password;
+          }
 
           const { error: directError } = await supabase
             .from('profiles')
@@ -372,6 +376,12 @@ export default function GuruList() {
           } else {
             toast.info("Database disinkronkan langsung (API Admin dilewati/fallback)");
           }
+        } else if (formData.password) {
+          // If api succeeded and password was provided, sync to avatar_url too
+          await supabase
+            .from('profiles')
+            .update({ avatar_url: formData.password })
+            .eq('id', selectedGuru.id);
         }
 
         await logActivity(
@@ -432,7 +442,8 @@ export default function GuruList() {
               subject: formData.subject,
               phone: formData.phone || null,
               address: formData.address || null,
-              is_active: formData.is_active
+              is_active: formData.is_active,
+              avatar_url: formData.password
             }], { onConflict: 'id' });
             
           if (patchError) {
@@ -445,7 +456,8 @@ export default function GuruList() {
                 subject: formData.subject,
                 phone: formData.phone || null,
                 address: formData.address || null,
-                is_active: formData.is_active
+                is_active: formData.is_active,
+                avatar_url: formData.password
               })
               .eq('id', result.user.id);
           }
@@ -508,7 +520,8 @@ export default function GuruList() {
               subject: formData.subject,
               phone: formData.phone || null,
               address: formData.address || null,
-              is_active: formData.is_active
+              is_active: formData.is_active,
+              avatar_url: formData.password
             };
 
             // Double security: Upsert values via the main authenticated client (Admin)
