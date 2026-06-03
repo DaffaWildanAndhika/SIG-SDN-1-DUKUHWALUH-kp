@@ -177,6 +177,36 @@ export default function GuruList() {
     }
   };
 
+  const handleSendResetEmail = async () => {
+    if (!selectedGuruForReset) return;
+    setLoading(true);
+    try {
+      const email = selectedGuruForReset.email;
+      if (!email) {
+        throw new Error("Guru tidak memiliki email.");
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) throw error;
+
+      await logActivity(
+        "Kirim Link Reset Password",
+        `Mengirim email link reset password ke guru: ${selectedGuruForReset.full_name} (${email})`
+      );
+
+      toast.success("Link reset password berhasil dikirim ke email guru!");
+      setIsResetDialogOpen(false);
+      setSelectedGuruForReset(null);
+    } catch (error: any) {
+      toast.error("Gagal mengirim email reset: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (selectedGuru) {
       setFormData({
@@ -1013,55 +1043,103 @@ export default function GuruList() {
 
       <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
         <DialogContent className="max-w-md p-0 overflow-hidden bg-white rounded-3xl border-none shadow-2xl">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-xl"></div>
+          <div className="bg-[#0f172a] p-8 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600 rounded-full blur-2xl opacity-20 -mr-16 -mt-16"></div>
             <div className="relative z-10 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center text-white">
+              <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-white/10 flex items-center justify-center text-blue-400">
                 <Key size={24} />
               </div>
               <div>
-                <DialogTitle className="text-xl font-black tracking-tight uppercase">Reset Password Guru</DialogTitle>
-                <DialogDescription className="text-blue-100 font-medium text-xs mt-1">
-                  Atur ulang password sementara akun guru.
+                <DialogTitle className="text-xl font-black tracking-tight uppercase text-white">Reset Password Guru</DialogTitle>
+                <DialogDescription className="text-slate-400 font-medium text-xs mt-1">
+                  Atur ulang atau kirimkan akses baru untuk akun guru.
                 </DialogDescription>
               </div>
             </div>
           </div>
           
-          <form onSubmit={handleResetPasswordSubmit} className="p-8 space-y-6 bg-white">
-            <div className="space-y-4">
-              {selectedGuruForReset && (
-                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-                  <p className="text-xs font-black text-blue-700 uppercase tracking-widest leading-none mb-1">Guru Penerima</p>
-                  <p className="text-sm font-black text-slate-800">{selectedGuruForReset.full_name}</p>
-                  <p className="text-xs font-bold text-slate-500 font-mono mt-0.5">{selectedGuruForReset.email}</p>
-                </div>
-              )}
+          <div className="p-8 space-y-6 bg-white max-h-[75vh] overflow-y-auto custom-scrollbar">
+            {selectedGuruForReset && (
+              <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Guru Penerima</p>
+                <p className="text-sm font-black text-slate-800">{selectedGuruForReset.full_name}</p>
+                <p className="text-xs font-bold text-slate-500 font-mono mt-0.5">{selectedGuruForReset.email}</p>
+              </div>
+            )}
 
-              <div className="space-y-2">
-                <Label htmlFor="temp-p-input" className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Password Sementara Baru</Label>
-                <Input
-                  id="temp-p-input"
-                  placeholder="Contoh: Guru123 (Minimal 6 karakter)"
-                  className="h-12 bg-slate-50/50 border-slate-150 focus:bg-white text-sm font-bold rounded-xl"
-                  value={tempPasswordInput}
-                  onChange={(e) => setTempPasswordInput(e.target.value)}
-                  required
-                />
-                <p className="text-[11px] text-slate-400 font-semibold leading-relaxed ml-1">
-                  Guru akan masuk dengan password ini dan langsung diminta untuk membuat password pribadi baru saat login demi keamanan akun.
-                </p>
+            <div className="space-y-5">
+              {/* Method A: Direct email reset link (RECOMENDED, DOES NOT NEED SERVICE ROLE KEY) */}
+              <div className="p-4 rounded-2xl border-2 border-emerald-100 bg-emerald-50/40 hover:bg-emerald-50 transition-all flex flex-col gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 mt-0.5">
+                    <Mail size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-800 leading-snug">Metode A: Kirim Link Reset via Email</h4>
+                    <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
+                      <strong>Rekomendasi Tanpa Service Key!</strong> Supabase akan mengirimkan email link pemulihan ke alamat guru. Guru tinggal klik link tersebut untuk mengisi password barunya sendiri.
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  type="button"
+                  onClick={handleSendResetEmail}
+                  disabled={loading}
+                  className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2"
+                >
+                  <Mail size={16} />
+                  <span>Kirim Email Reset Password</span>
+                </Button>
+              </div>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-slate-100"></div>
+                <span className="flex-shrink mx-4 text-[10px] font-black text-slate-300 uppercase tracking-widest">ATAU</span>
+                <div className="flex-grow border-t border-slate-100"></div>
+              </div>
+
+              {/* Method B: Instant admin manual password override (NEEDS SERVICE ROLE KEY) */}
+              <div className="p-4 rounded-2xl border border-slate-150 bg-slate-50/50 flex flex-col gap-3">
+                <div className="flex items-start gap-3 col-span-2">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0 mt-0.5">
+                    <Key size={16} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-800 leading-snug">Metode B: Ubah Password Instan (Manual)</h4>
+                    <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
+                      Mengubah langsung password dari dashboard admin. Fitur ini <strong>wajib</strong> dikonfigurasi dengan memasukkan <code className="font-mono bg-slate-100 text-slate-700 px-1 rounded font-bold">SUPABASE_SERVICE_ROLE_KEY</code> di menu Settings &rarr; Secrets.
+                    </p>
+                  </div>
+                </div>
+                
+                <form onSubmit={handleResetPasswordSubmit} className="space-y-4 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="temp-p-input" className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Password Sementara Baru</Label>
+                    <Input
+                      id="temp-p-input"
+                      placeholder="Contoh: Guru123 (min 6 karakter)"
+                      className="h-11 bg-white border-slate-200 text-sm font-semibold rounded-xl"
+                      value={tempPasswordInput}
+                      onChange={(e) => setTempPasswordInput(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <Button 
+                    type="submit"
+                    disabled={loading}
+                    className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Key size={16} />
+                    <span>Terapkan Password Instan</span>
+                  </Button>
+                </form>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-150">
+            <div className="flex items-center justify-end pt-4 border-t border-slate-100">
               <Button type="button" variant="ghost" onClick={() => setIsResetDialogOpen(false)} className="h-11 px-5 font-black text-slate-400 hover:text-slate-900 rounded-xl">Batal</Button>
-              <Button type="submit" disabled={loading} className="h-11 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-100 rounded-xl transition-all flex items-center gap-2">
-                {loading ? "Memproses..." : "Reset Password"}
-                {!loading && <ArrowRight size={16} />}
-              </Button>
             </div>
-          </form>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
