@@ -138,9 +138,19 @@ export default function GuruList() {
         })
       });
 
-      const result = await response.json().catch(() => ({}));
+      const text = await response.text();
+      let result: any = {};
+      if (text) {
+        try {
+          result = JSON.parse(text);
+        } catch (e) {
+          console.error("Format parsing error:", text);
+        }
+      }
+
       if (!response.ok) {
-        throw new Error(result.error || "Gagal mengubah password.");
+        const errorDetail = result.error || (text && text.includes("<html") ? `Server Error: ${response.status} (${response.statusText})` : text) || "Gagal mengubah password.";
+        throw new Error(errorDetail);
       }
 
       await logActivity(
