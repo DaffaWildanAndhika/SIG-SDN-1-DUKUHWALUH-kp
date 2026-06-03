@@ -201,28 +201,27 @@ apiRouter.post("/admin/create-user", async (req, res) => {
 
 // API to verify backup password (avatar_url plain-text fallback) bypassing any RLS issues
 apiRouter.post("/auth/verify-bypass", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, clientUrl, clientKey } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: "Email dan password wajib diisi." });
   }
 
-  const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const rawUrl = clientUrl || process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || clientKey || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!rawUrl) {
     return res.status(500).json({ 
-      error: "Fitur masuk pemulihan (Bypass) belum dapat digunakan di Vercel: VITE_SUPABASE_URL belum dikonfigurasi di Environment Variables Vercel Anda. Silakan tambahkan 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', dan 'SUPABASE_SERVICE_ROLE_KEY' di Dashboard Vercel -> Settings -> Environment Variables, lalu Deploy Ulang." 
+      error: "Fitur masuk pemulihan (Bypass) belum dapat digunakan: Kredensial Supabase URL tidak ditemukan. Pastikan Anda telah membuat file .env untuk lokal, atau mengonfigurasi Environment Variables di dashboard Vercel Anda." 
     });
   }
 
   if (!rawKey) {
     return res.status(500).json({ 
-      error: "Fitur masuk pemulihan (Bypass) belum dapat digunakan di Vercel: SUPABASE_SERVICE_ROLE_KEY atau VITE_SUPABASE_ANON_KEY belum dikonfigurasi di Environment Variables Vercel Anda." 
+      error: "Fitur masuk pemulihan (Bypass) belum dapat digunakan: Kredensial Key Supabase tidak ditemukan. Silakan periksa konfigurasi Anda." 
     });
   }
 
   try {
-    const { createClient } = await import("@supabase/supabase-js");
     const supabaseAdmin = createClient(rawUrl.trim(), rawKey.trim(), {
       auth: {
         persistSession: false,
@@ -239,7 +238,9 @@ apiRouter.post("/auth/verify-bypass", async (req, res) => {
 
     if (profileErr) {
       console.error("Bypass profile verification db error:", profileErr);
-      return res.status(401).json({ error: "Terjadi gangguan saat memverifikasi akun guru di database: " + profileErr.message });
+      return res.status(401).json({ 
+        error: `Terjadi gangguan RLS (Row Level Security) database: ${profileErr.message}. Silakan buka SQL Editor di dashboard Supabase Anda lalu jalankan perintah berikut untuk mengizinkan verifikasi akun:\n\nCREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);` 
+      });
     }
 
     if (!profile) {

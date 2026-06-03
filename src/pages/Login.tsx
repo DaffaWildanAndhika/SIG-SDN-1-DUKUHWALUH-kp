@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Key, Mail, School, Shield, GraduationCap, User, Eye, EyeOff } from "lucide-react";
+import { Key, Mail, School, Shield, GraduationCap, User, Eye, EyeOff, Terminal, Copy, Check, AlertCircle, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,9 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'admin' | 'guru'>('admin');
   const [teachers, setTeachers] = useState<any[]>([]);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [copiedSql, setCopiedSql] = useState(false);
+  const [showTroubleshoot, setShowTroubleshoot] = useState(false);
 
   useEffect(() => {
     const fetchTeachers = async () => {
@@ -33,9 +36,18 @@ export default function Login() {
     fetchTeachers();
   }, []);
 
+  const copySqlToClipboard = () => {
+    const sql = `CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);`;
+    navigator.clipboard.writeText(sql);
+    setCopiedSql(true);
+    toast.success("Query SQL disalin!");
+    setTimeout(() => setCopiedSql(false), 2000);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setLoginError(null);
 
     const emailTrimmed = email.trim().toLowerCase();
     const isSpecialAdminEmail = emailTrimmed === "admin@sekolah.id" || emailTrimmed === "admin@sekolah.is";
@@ -60,11 +72,16 @@ export default function Login() {
         if (authError) {
           console.log("Supabase Auth standard login rejected. Falling back to secure server-side bypass verification...", authError.message);
           
-          // Request verify-bypass via server API
+          // Request verify-bypass via server API, passing client config so server has credentials
           const response = await fetch("/api/auth/verify-bypass", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: emailTrimmed, password })
+            body: JSON.stringify({ 
+              email: emailTrimmed, 
+              password,
+              clientUrl: import.meta.env.VITE_SUPABASE_URL,
+              clientKey: import.meta.env.VITE_SUPABASE_ANON_KEY
+            })
           });
 
           if (response.ok) {
@@ -138,6 +155,8 @@ export default function Login() {
         toast.success("Berhasil masuk!");
       }
     } catch (error: any) {
+      setLoginError(error.message || "Gagal masuk. Periksa kembali email dan password Anda.");
+      setShowTroubleshoot(true);
       toast.error(error.message || "Terjadi kesalahan. Silakan coba lagi.");
     } finally {
       setLoading(false);
@@ -156,7 +175,7 @@ export default function Login() {
         <div className="flex flex-col items-center mb-6">
           <div className="bg-blue-600 p-4 rounded-2xl shadow-xl shadow-blue-200 mb-4 cursor-pointer hover:scale-105 transition-transform flex items-center justify-center overflow-hidden relative w-16 h-16">
             <img 
-              src="/logo.jpg" 
+              src="/logo_sekolah.png" 
               alt="School Logo" 
               className="absolute inset-0 w-full h-full object-contain bg-blue-600 z-10"
               onError={(e) => {
@@ -167,7 +186,7 @@ export default function Login() {
             <School className="text-white" size={32} />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 leading-tight">SDN 1 Dukuhwaluh</h1>
-          <p className="text-slate-500 text-sm">Sistem Informasi Akademik Guru</p>
+          <p className="text-slate-500 text-sm">Sistem Informasi Administrasi Guru</p>
         </div>
 
         <Card className="border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
@@ -260,13 +279,117 @@ export default function Login() {
                   {loading ? "Memproses..." : `Masuk Sebagai ${selectedRole === 'admin' ? 'Admin' : 'Guru'}`}
                 </Button>
                 
-                
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 w-full space-y-3">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+                    Akun Uji Coba Tersedia:
+                  </p>
+                  
+                  {selectedRole === 'admin' ? (
+                    <button 
+                      type="button"
+                      onClick={() => { setEmail("admin@sekolah.id"); setPassword("admin123"); }}
+                      className="text-[11px] text-slate-600 hover:bg-white hover:shadow-sm p-2.5 rounded-xl transition-all text-left flex items-center justify-between w-full font-bold border border-transparent hover:border-blue-100 bg-slate-100/50"
+                    >
+                      <span className="text-blue-600 flex items-center gap-1">
+                        <Shield size={12} />
+                        Login Admin
+                      </span>
+                      <span className="font-mono text-blue-400">admin@sekolah.id</span>
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      {teachers.length > 0 ? (
+                        teachers.map((teacher, idx) => (
+                          <button 
+                            key={idx}
+                            type="button"
+                            onClick={() => { 
+                              setEmail(teacher.email || ""); 
+                              setPassword(teacher.avatar_url || "guru123"); 
+                            }}
+                            className="text-[11px] text-slate-600 hover:bg-white hover:shadow-sm p-2.5 rounded-xl transition-all text-left flex items-center justify-between w-full font-bold border border-transparent hover:border-blue-100 bg-slate-100/50"
+                          >
+                            <span className="text-blue-600 flex items-center gap-1 min-w-0 max-w-[150px] truncate">
+                              <User size={12} className="shrink-0" />
+                              {teacher.full_name}
+                            </span>
+                            <span className="font-mono text-blue-400 truncate ml-1">{teacher.email}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="text-[11px] text-slate-500 bg-amber-50 border border-amber-100 p-2.5 rounded-xl">
+                          Belum ada data guru. Silakan masuk sebagai <strong>Admin</strong> terlebih dahulu untuk mendaftarkan akun Guru baru.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </CardFooter>
             </form>
           </Card>
+
+          {/* Interactive Troubleshooting Guide to assist user explicitly with Vercel vs Supabase setup */}
+          {showTroubleshoot && (
+            <div className="mt-4 bg-amber-50 border border-amber-200/80 rounded-2xl p-5 shadow-sm text-amber-900 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-amber-900">Mengapa Guru Tidak Bisa Masuk Setelah Reset Sandi di Vercel?</h3>
+                  <p className="text-xs text-amber-700 leading-relaxed font-medium">
+                    Di server produksi (Vercel), saat Admin mengubah sandi guru, Supabase memerlukan kunci akses khusus (<code className="font-mono bg-amber-100 rounded px-1">SUPABASE_SERVICE_ROLE_KEY</code>) agar perubahan kata sandi tersinkronisasi ke sistem autentikasi asli Supabase. Jika kunci ini belum disiapkan di Vercel, maka guru tidak bisa masuk dengan sandi baru mereka.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 border-t border-amber-200/60 pt-4 space-y-4">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5 mb-1.5">
+                    <span className="flex items-center justify-center w-4.5 h-4.5 rounded-full bg-amber-600 text-[10px] text-white">1</span>
+                    Solusi Tercepat (Langsung Aktif — 5 Detik):
+                  </h4>
+                  <p className="text-[11px] text-amber-700 leading-relaxed mb-2 font-medium">
+                    Izinkan aplikasi membaca kata sandi cadangan langsung dari tabel profil dengan memasukkan aturan akses publik di database Anda. Ikuti cara ini:
+                  </p>
+                  
+                  <ol className="list-decimal list-inside text-[11px] text-amber-700 space-y-1 ml-1 mb-3 bg-amber-100/50 p-3 rounded-xl border border-amber-200/50">
+                    <li>Buka dashboard akun <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="underline font-bold text-blue-700">Supabase</a> proyek Anda.</li>
+                    <li>Samping kiri, pilih menu <strong>SQL Editor</strong> &rarr; klik <strong>New Query</strong>.</li>
+                    <li>Tempelkan (Paste) baris atau query SQL di bawah ini, lalu klik tombol <strong>Run</strong>.</li>
+                  </ol>
+
+                  <div className="relative mt-2 rounded-xl overflow-hidden border border-slate-200 shadow-inner bg-slate-900 text-slate-100 p-3 font-mono text-[10.5px]">
+                    <div className="flex justify-between items-center pb-2 mb-2 border-b border-slate-800 text-[9px] text-slate-400 font-sans tracking-wide">
+                      <span className="flex items-center gap-1"><Terminal size={10} /> SUPABASE SQL TEMPLATE</span>
+                      <button 
+                        onClick={copySqlToClipboard}
+                        className="flex items-center gap-1 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 py-1 px-2 rounded-md font-bold text-[9px]"
+                      >
+                        {copiedSql ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                        {copiedSql ? "Disalin!" : "Salin SQL"}
+                      </button>
+                    </div>
+                    <code className="block select-all whitespace-normal break-all text-emerald-400">
+                      CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
+                    </code>
+                  </div>
+                </div>
+
+                <div className="border-t border-amber-200/60 pt-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5 mb-1">
+                    <span className="flex items-center justify-center w-4.5 h-4.5 rounded-full bg-amber-600 text-[10px] text-white">2</span>
+                    Solusi Rekomendasi (Keamanan Penuh):
+                  </h4>
+                  <p className="text-[11px] text-amber-700 leading-relaxed font-medium">
+                    Salin variabel <strong className="font-mono">SUPABASE_SERVICE_ROLE_KEY</strong> dari akun Supabase Anda (ada di <em>Project Settings &rarr; API &rarr; service_role</em>), lalu tambahkan ke <strong>Environment Variables</strong> proyek Anda di dashboard <strong>Vercel (Settings &rarr; Environment Variables)</strong>, kemudian lakukan <strong>Redeploy</strong> proyek Anda.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         
         <p className="mt-8 text-center text-slate-400 text-xs text-balance">
-          Sistem Informasi Akademik Guru SDN 1 Dukuhwaluh
+          Sistem Informasi Administrasi Guru SDN 1 Dukuhwaluh
         </p>
       </div>
     </div>
