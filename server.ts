@@ -14,8 +14,14 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Middleware for parsing JSON
-  app.use(express.json());
+  // Safe Body Parser Middleware
+  app.use((req, res, next) => {
+    if (req.body && typeof req.body === "object" && Object.keys(req.body).length > 0) {
+      next();
+    } else {
+      express.json()(req, res, next);
+    }
+  });
 
   // Simple Request Logger
   app.use((req, res, next) => {
@@ -23,16 +29,43 @@ async function startServer() {
     next();
   });
 
-  // API Routes
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", message: "Server is running (v2)", timestamp: new Date().toISOString() });
-  });
-
   // Activity Logs Persistence (Local File on Server as bulletproof persistence)
   const LOGS_FILE_PATH = path.join(process.cwd(), "activity_logs.json");
 
+  // Router to handle paths without '/api' prefix inside the routes
+  const apiRouter = express.Router();
+
+  // GET /health
+  apiRouter.get("/health", (req, res) => {
+    const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+
+    res.json({ 
+      status: "ok", 
+      message: "Server is running (v2)", 
+      timestamp: new Date().toISOString(),
+      diagnostics: {
+        has_supabase_url: !(!rawUrl),
+        has_supabase_service_role_key: !(!rawKey),
+        supabase_url_preview: rawUrl ? `${rawUrl.substring(0, 15)}...` : null,
+        environment_keys: Object.keys(process.env).filter(k => 
+          k.includes("SUPABASE") || k.includes("SERVICE") || k.includes("PORT") || k.includes("NODE")
+        )
+      }
+    });
+  });
+
+  // Example API for school info
+  apiRouter.get("/school-info", (req, res) => {
+    res.json({
+      name: "SD Negeri 1 Dukuhwaluh",
+      npsn: "20302148",
+      address: "Jl. Raya Dukuhwaluh, Kec. Kembaran, Kab. Banyumas",
+    });
+  });
+
   // Endpoint to save action log
-  app.post("/api/activity-logs", (req, res) => {
+  apiRouter.post("/activity-logs", (req, res) => {
     const { user_id, user_fullname, user_role, action, details, prev_data, new_data } = req.body;
     try {
       let logs: any[] = [];
@@ -81,7 +114,7 @@ async function startServer() {
   });
 
   // Endpoint to retrieve activity logs
-  app.get("/api/activity-logs", (req, res) => {
+  apiRouter.get("/activity-logs", (req, res) => {
     try {
       let logs = [];
       if (fs.existsSync(LOGS_FILE_PATH)) {
@@ -101,7 +134,7 @@ async function startServer() {
   });
 
   // Endpoint to clear all activity logs
-  app.delete("/api/activity-logs", (req, res) => {
+  apiRouter.delete("/activity-logs", (req, res) => {
     try {
       try {
         fs.writeFileSync(LOGS_FILE_PATH, JSON.stringify([], null, 2), "utf-8");
@@ -114,17 +147,8 @@ async function startServer() {
     }
   });
 
-  // Example API for school info
-  app.get("/api/school-info", (req, res) => {
-    res.json({
-      name: "SD Negeri 1 Dukuhwaluh",
-      npsn: "20302148", // Example
-      address: "Jl. Raya Dukuhwaluh, Kec. Kembaran, Kab. Banyumas",
-    });
-  });
-
   // API for Admin to create teacher accounts
-  app.post("/api/admin/create-user", async (req, res) => {
+  apiRouter.post("/admin/create-user", async (req, res) => {
     const { email, password, full_name, role } = req.body;
     
     const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -146,7 +170,7 @@ async function startServer() {
         }
       });
 
-            // 1. Create the user in Auth
+      // 1. Create the user in Auth
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
@@ -180,7 +204,7 @@ async function startServer() {
   });
 
   // API for Admin to update teacher accounts (including password)
-  app.post("/api/admin/update-user", async (req, res) => {
+  apiRouter.post("/admin/update-user", async (req, res) => {
     const { id, email, password, full_name, role, nip, gender, subject, phone, address, is_active } = req.body;
     
     const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -281,6 +305,10 @@ async function startServer() {
     }
   });
 
+  // Mount the apiRouter under both "/api" and "/"
+  app.use("/api", apiRouter);
+  app.use("/", apiRouter);
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -291,7 +319,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*All", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

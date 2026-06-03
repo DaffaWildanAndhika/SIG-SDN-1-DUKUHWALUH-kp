@@ -149,8 +149,17 @@ export default function GuruList() {
       }
 
       if (!response.ok) {
-        const errorDetail = result.error || (text && text.includes("<html") ? `Server Error: ${response.status} (${response.statusText})` : text) || "Gagal mengubah password.";
-        throw new Error(errorDetail);
+        let helpMessage = "";
+        if (response.status === 404) {
+          helpMessage = "Endpoint backend (/api/admin/update-user) tidak ditemukan (404 Not Found). Mohon pastikan file 'server.ts' atau 'api/index.ts' sudah di-deploy dengan sukses ke platform hosting Anda.";
+        } else if (response.status === 500) {
+          const detail = result.error || (text && text.includes("<html") ? `Server Error: ${response.status} (${response.statusText})` : text) || "";
+          helpMessage = `Kesalahan Server Intern (500). ${detail ? `Detail: ${detail}. ` : ""}Silakan periksa apakah SUPABASE_SERVICE_ROLE_KEY valid dan sudah di-deploy ke Server/Vercel Anda.`;
+        } else {
+          const detail = result.error || (text && text.includes("<html") ? `Server Error: ${response.status} (${response.statusText})` : text) || text || "";
+          helpMessage = detail || `Kesalahan ${response.status}: Silakan hubungi admin atau periksa kredensial Supabase Service Role Key Anda.`;
+        }
+        throw new Error(helpMessage);
       }
 
       await logActivity(

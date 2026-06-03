@@ -8,8 +8,16 @@ dotenv.config();
 
 const app = express();
 
-// Middleware for parsing JSON
-app.use(express.json());
+// Safe Body Parser Middleware for Vercel Serverless
+// In Vercel, the req.body is often pre-parsed into an object before reaching the function.
+// Parsing it again can cause requests to hang or time out.
+app.use((req, res, next) => {
+  if (req.body && typeof req.body === "object" && Object.keys(req.body).length > 0) {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
 
 // Request logger middleware
 app.use((req, res, next) => {
@@ -22,19 +30,31 @@ const LOGS_FILE_PATH = process.env.VERCEL
   ? path.join("/tmp", "activity_logs.json") 
   : path.join(process.cwd(), "activity_logs.json");
 
-// API Routes
+// Router to handle paths without'/api' prefix inside the routes
+const apiRouter = express.Router();
 
-// GET /api/health
-app.get("/api/health", (req, res) => {
+// GET /health
+apiRouter.get("/health", (req, res) => {
+  const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+
   res.json({ 
     status: "ok", 
-    message: "Vercel Serverless API is running", 
-    timestamp: new Date().toISOString() 
+    message: "Resilient Serverless API is running", 
+    timestamp: new Date().toISOString(),
+    diagnostics: {
+      has_supabase_url: !(!rawUrl),
+      has_supabase_service_role_key: !(!rawKey),
+      supabase_url_preview: rawUrl ? `${rawUrl.substring(0, 15)}...` : null,
+      environment_keys: Object.keys(process.env).filter(k => 
+        k.includes("SUPABASE") || k.includes("SERVICE") || k.includes("PORT") || k.includes("NODE")
+      )
+    }
   });
 });
 
-// GET /api/school-info
-app.get("/api/school-info", (req, res) => {
+// GET /school-info
+apiRouter.get("/school-info", (req, res) => {
   res.json({
     name: "SD Negeri 1 Dukuhwaluh",
     npsn: "20302148",
@@ -42,8 +62,8 @@ app.get("/api/school-info", (req, res) => {
   });
 });
 
-// POST /api/activity-logs
-app.post("/api/activity-logs", (req, res) => {
+// POST /activity-logs
+apiRouter.post("/activity-logs", (req, res) => {
   const { user_id, user_fullname, user_role, action, details, prev_data, new_data } = req.body;
   try {
     let logs: any[] = [];
@@ -90,8 +110,8 @@ app.post("/api/activity-logs", (req, res) => {
   }
 });
 
-// GET /api/activity-logs
-app.get("/api/activity-logs", (req, res) => {
+// GET /activity-logs
+apiRouter.get("/activity-logs", (req, res) => {
   try {
     let logs = [];
     if (fs.existsSync(LOGS_FILE_PATH)) {
@@ -110,8 +130,8 @@ app.get("/api/activity-logs", (req, res) => {
   }
 });
 
-// DELETE /api/activity-logs
-app.delete("/api/activity-logs", (req, res) => {
+// DELETE /activity-logs
+apiRouter.delete("/activity-logs", (req, res) => {
   try {
     try {
       fs.writeFileSync(LOGS_FILE_PATH, JSON.stringify([], null, 2), "utf-8");
@@ -124,8 +144,8 @@ app.delete("/api/activity-logs", (req, res) => {
   }
 });
 
-// POST /api/admin/create-user
-app.post("/api/admin/create-user", async (req, res) => {
+// POST /admin/create-user
+apiRouter.post("/admin/create-user", async (req, res) => {
   const { email, password, full_name, role } = req.body;
   
   const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -179,8 +199,8 @@ app.post("/api/admin/create-user", async (req, res) => {
   }
 });
 
-// POST /api/admin/update-user
-app.post("/api/admin/update-user", async (req, res) => {
+// POST /admin/update-user
+apiRouter.post("/admin/update-user", async (req, res) => {
   const { id, email, password, full_name, role, nip, gender, subject, phone, address, is_active } = req.body;
   
   const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -267,5 +287,9 @@ app.post("/api/admin/update-user", async (req, res) => {
     res.status(400).json({ error: error?.message || error || "Failed to update user" });
   }
 });
+
+// Mount the apiRouter under both "/api" and "/"
+app.use("/api", apiRouter);
+app.use("/", apiRouter);
 
 export default app;
