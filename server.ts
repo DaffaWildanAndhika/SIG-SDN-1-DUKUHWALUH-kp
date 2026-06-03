@@ -131,7 +131,7 @@ async function startServer() {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      return res.status(500).json({ error: "Server configuration error: missing Supabase keys" });
+      return res.status(500).json({ error: "Konfigurasi server bermasalah: SUPABASE_SERVICE_ROLE_KEY belum diatur di menu Settings -> Secrets di AI Studio Anda. Silakan isi terlebih dahulu." });
     }
 
     try {
@@ -184,7 +184,7 @@ async function startServer() {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      return res.status(500).json({ error: "Server configuration error: missing Supabase keys" });
+      return res.status(500).json({ error: "Konfigurasi server bermasalah: SUPABASE_SERVICE_ROLE_KEY belum diatur di menu Settings -> Secrets di AI Studio Anda. Silakan isi terlebih dahulu." });
     }
 
     try {
@@ -233,9 +233,15 @@ async function startServer() {
           const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, updateAuthData);
           if (authError) {
             console.warn("Supabase Auth admin update bypassed:", authError.message);
+            if (password || email) {
+              throw new Error(`Gagal memperbarui autentikasi guru di database: ${authError.message}. Pastikan SUPABASE_SERVICE_ROLE_KEY di server sudah valid.`);
+            }
           }
         } catch (authException: any) {
           console.warn("Auth update exception (non-blocking bypass):", authException);
+          if (password || email) {
+            throw new Error(`Gagal memperbarui autentikasi guru (exception): ${authException?.message || authException}. Pastikan SUPABASE_SERVICE_ROLE_KEY di server sudah valid.`);
+          }
         }
       }
 
