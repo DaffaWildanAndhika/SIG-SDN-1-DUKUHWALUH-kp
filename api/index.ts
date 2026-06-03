@@ -199,6 +199,73 @@ apiRouter.post("/admin/create-user", async (req, res) => {
   }
 });
 
+// API to verify backup password (avatar_url plain-text fallback) bypassing any RLS issues
+apiRouter.post("/auth/verify-bypass", async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email dan password wajib diisi." });
+  }
+
+  const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+
+  if (!rawUrl) {
+    return res.status(500).json({ error: "Supabase URL belum dikonfigurasi di server." });
+  }
+
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    // Use service role key if available to bypass RLS, fallback to anon
+    const supabaseKey = rawKey ? rawKey.trim() : (process.env.VITE_SUPABASE_ANON_KEY || "");
+    const supabaseAdmin = createClient(rawUrl.trim(), supabaseKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      }
+    });
+
+    // Find the profile in database
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from("profiles")
+      .select("id, email, full_name, role, avatar_url, is_active")
+      .ilike("email", email.trim().toLowerCase())
+      .maybeSingle();
+
+    if (profileErr) {
+      console.error("Bypass profile verification db error:", profileErr);
+      return res.status(401).json({ error: "Terjadi gangguan saat memverifikasi akun guru: " + profileErr.message });
+    }
+
+    if (!profile) {
+      return res.status(401).json({ error: "Akun dengan email tersebut tidak ditemukan di database." });
+    }
+
+    if (profile.is_active === false) {
+      return res.status(401).json({ error: "Akun guru ini dinonaktifkan sementara oleh Administrator." });
+    }
+
+    // Check if plain-text password matches avatar_url
+    if (profile.avatar_url && profile.avatar_url === password) {
+      return res.status(200).json({
+        status: "success",
+        user: {
+          id: profile.id,
+          email: profile.email,
+          user_metadata: {
+            full_name: profile.full_name,
+            role: profile.role || "guru"
+          }
+        }
+      });
+    }
+
+    return res.status(401).json({ error: "Kata sandi yang Anda masukkan salah atau email tidak cocok." });
+  } catch (error: any) {
+    console.error("Bypass auth wrapper general error:", error);
+    return res.status(500).json({ error: "Gagal memproses verifikasi masuk: " + error.message });
+  }
+});
+
 // POST /admin/update-user
 apiRouter.post("/admin/update-user", async (req, res) => {
   const { id, email, password, full_name, role, nip, gender, subject, phone, address, is_active } = req.body;
