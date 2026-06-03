@@ -1,5 +1,38 @@
 [
   {
+    "id": "u310fj0my_1780460211149",
+    "user_id": "d1c3d9b8-0d73-4933-acfc-1e79aaac0fa6",
+    "user_fullname": "abimanyu S.Pd",
+    "user_role": "guru",
+    "action": "Menambahkan Data Siswa",
+    "details": "Menambahkan siswa baru Reza (NIS: 1234) ke kelas 5A",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-03T04:16:51.149Z"
+  },
+  {
+    "id": "squkvd6kd_1780460106107",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Reset Password Guru",
+    "details": "Mereset password sementara untuk guru: abimanyu S.Pd (abimanyu@gmail.com)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-03T04:15:06.108Z"
+  },
+  {
+    "id": "nppyntpez_1780459780060",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Reset Password Guru",
+    "details": "Mereset password sementara untuk guru: Eka Apriliansyah (Eka@gmail.com)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-03T04:09:40.060Z"
+  },
+  {
     "id": "2hi29qocd_1780458867389",
     "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
     "user_fullname": "Administrator",

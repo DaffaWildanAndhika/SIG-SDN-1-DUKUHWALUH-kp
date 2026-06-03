@@ -79,6 +79,9 @@ export default function GuruList() {
   const [selectedGuruForReset, setSelectedGuruForReset] = useState<any>(null);
   const [tempPasswordInput, setTempPasswordInput] = useState("Guru123");
   
+  const [showFormPassword, setShowFormPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  
   // Form State
   const [formData, setFormData] = useState({
     nip: "",
@@ -993,14 +996,23 @@ export default function GuruList() {
                       <Label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
                         Password Sementara
                       </Label>
-                      <Input 
-                        type="password"
-                        placeholder="Contoh: guru123 (Minimal 6 karakter)"
-                        className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl" 
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        required
-                      />
+                      <div className="relative">
+                        <Input 
+                          type={showFormPassword ? "text" : "password"}
+                          placeholder="Contoh: guru123 (Minimal 6 karakter)"
+                          className="h-12 bg-slate-50/50 border-slate-100 focus:bg-white transition-all text-sm font-bold rounded-xl pr-12" 
+                          value={formData.password}
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowFormPassword(!showFormPassword)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                        >
+                          {showFormPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -1121,14 +1133,24 @@ export default function GuruList() {
                 <form onSubmit={handleResetPasswordSubmit} className="space-y-4 pt-1">
                   <div className="space-y-1.5">
                     <Label htmlFor="temp-p-input" className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Password Baru Guru</Label>
-                    <Input
-                      id="temp-p-input"
-                      placeholder="Contoh: GuruBaru123 (min 6 karakter)"
-                      className="h-11 bg-white border-slate-200 text-sm font-semibold rounded-xl"
-                      value={tempPasswordInput}
-                      onChange={(e) => setTempPasswordInput(e.target.value)}
-                      required
-                    />
+                    <div className="relative">
+                      <Input
+                        id="temp-p-input"
+                        type={showResetPassword ? "text" : "password"}
+                        placeholder="Contoh: GuruBaru123 (min 6 karakter)"
+                        className="h-11 bg-white border-slate-200 text-sm font-semibold rounded-xl pr-12"
+                        value={tempPasswordInput}
+                        onChange={(e) => setTempPasswordInput(e.target.value)}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowResetPassword(!showResetPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                      >
+                        {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
                   <Button 
                     type="submit"
