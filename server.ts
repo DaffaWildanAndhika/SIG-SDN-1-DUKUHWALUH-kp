@@ -211,17 +211,23 @@ async function startServer() {
     }
 
     const rawUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+    const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!rawUrl) {
-      return res.status(500).json({ error: "Supabase URL belum dikonfigurasi di server." });
+      return res.status(500).json({ 
+        error: "Fitur masuk pemulihan (Bypass) belum dapat digunakan di Vercel: VITE_SUPABASE_URL belum dikonfigurasi di Environment Variables Vercel Anda. Silakan tambahkan 'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', dan 'SUPABASE_SERVICE_ROLE_KEY' di Dashboard Vercel -> Settings -> Environment Variables, lalu Deploy Ulang." 
+      });
+    }
+
+    if (!rawKey) {
+      return res.status(500).json({ 
+        error: "Fitur masuk pemulihan (Bypass) belum dapat digunakan di Vercel: SUPABASE_SERVICE_ROLE_KEY atau VITE_SUPABASE_ANON_KEY belum dikonfigurasi di Environment Variables Vercel Anda." 
+      });
     }
 
     try {
       const { createClient } = await import("@supabase/supabase-js");
-      // Use service role key if available to bypass RLS, fallback to anon
-      const supabaseKey = rawKey ? rawKey.trim() : (process.env.VITE_SUPABASE_ANON_KEY || "");
-      const supabaseAdmin = createClient(rawUrl.trim(), supabaseKey, {
+      const supabaseAdmin = createClient(rawUrl.trim(), rawKey.trim(), {
         auth: {
           persistSession: false,
           autoRefreshToken: false
@@ -237,7 +243,7 @@ async function startServer() {
 
       if (profileErr) {
         console.error("Bypass profile verification db error:", profileErr);
-        return res.status(401).json({ error: "Terjadi gangguan saat memverifikasi akun guru: " + profileErr.message });
+        return res.status(401).json({ error: "Terjadi gangguan saat memverifikasi akun guru di database: " + profileErr.message });
       }
 
       if (!profile) {
