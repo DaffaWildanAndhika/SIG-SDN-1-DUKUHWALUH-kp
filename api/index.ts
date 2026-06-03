@@ -62,6 +62,13 @@ apiRouter.get("/school-info", (req, res) => {
   });
 });
 
+// GET /supabase-config
+apiRouter.get("/supabase-config", (req, res) => {
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  res.json({ url: url || null, anonKey: anonKey || null });
+});
+
 // POST /activity-logs
 apiRouter.post("/activity-logs", (req, res) => {
   const { user_id, user_fullname, user_role, action, details, prev_data, new_data } = req.body;

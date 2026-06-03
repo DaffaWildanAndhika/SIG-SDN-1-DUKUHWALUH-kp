@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
-import { supabase } from "./lib/supabase";
+import { supabase, setDynamicSupabaseCredentials } from "./lib/supabase";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./components/ui/dialog";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
@@ -34,6 +34,7 @@ import Kelas from "./pages/Kelas";
 import Agenda from "./pages/Agenda";
 import NilaiSiswa from "./pages/NilaiSiswa";
 import Login from "./pages/Login";
+
 import ActivityLogs from "./pages/ActivityLogs";
 import BackupRestore from "./pages/BackupRestore";
 
@@ -118,6 +119,7 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
   const isGuru = userRole === "guru" || isKepalaSekolah || isAdmin;
 
   const handleLogout = async () => {
+    localStorage.removeItem("demo_user");
     await supabase.auth.signOut();
   };
 
@@ -195,7 +197,7 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
             <div className={`flex items-center gap-3 ${!isSidebarOpen && !isMobileMenuOpen ? 'mx-auto' : ''}`}>
               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shrink-0 overflow-hidden relative shadow-lg shadow-blue-600/20">
                 <img 
-                  src="/logo.jpg" 
+                  src="/logo_sekolah.png" 
                   alt="School Logo" 
                   className="absolute inset-0 w-full h-full object-contain bg-blue-600 z-10"
                   onError={(e) => {
@@ -465,6 +467,7 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
 };
 
 export default function App() {
+  const [configLoaded, setConfigLoaded] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [appRole, setAppRole] = useState<string>("");
@@ -472,35 +475,60 @@ export default function App() {
   const user = session?.user;
   const isFirstLogin = false;
 
+  // 1. Fetch dynamic Supabase configuration from backend
   useEffect(() => {
-    if (user?.id) {
-      const fetchAppRole = async () => {
-        try {
-          const { data: roleData } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
-            .single();
-
-          if (roleData) {
-            setAppRole(roleData.role || "guru");
-          } else {
-            setAppRole(user?.user_metadata?.role || "guru");
+    const fetchEnvConf = async () => {
+      try {
+        const response = await fetch("/api/supabase-config");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.url && data.anonKey) {
+            setDynamicSupabaseCredentials(data.url, data.anonKey);
           }
-        } catch (err) {
-          console.warn("Error checking table role, relying on auth fallback:", err);
         }
-      };
-      fetchAppRole();
-    } else {
-      setAppRole("");
+      } catch (err) {
+        console.warn("Could not retrieve backend env configuration dynamically:", err);
+      } finally {
+        setConfigLoaded(true);
+      }
+    };
+    fetchEnvConf();
+  }, []);
+
+  // 2. Fetch App Role only after configuration is fully loaded and user logged in
+  useEffect(() => {
+    if (!configLoaded || !user?.id) {
+      if (!user?.id) setAppRole("");
+      return;
     }
-  }, [user?.id]);
+    
+    const fetchAppRole = async () => {
+      try {
+        const { data: roleData } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (roleData) {
+          setAppRole(roleData.role || "guru");
+        } else {
+          setAppRole(user?.user_metadata?.role || "guru");
+        }
+      } catch (err) {
+        console.warn("Error checking table role, relying on auth fallback:", err);
+      }
+    };
+    fetchAppRole();
+  }, [user?.id, configLoaded]);
 
   const isSpecialAdmin = user?.email === "admin@sekolah.is" || user?.email === "admin@sekolah.id";
   const isAdmin = appRole === "admin" || user?.user_metadata?.role === "admin" || isSpecialAdmin;
 
+  // 3. Initialize Session and onAuthStateChange listener only after configuration is fully loaded
   useEffect(() => {
+    if (!configLoaded) return;
+
     // Check for real Supabase session first
     const initSession = async () => {
       try {
@@ -528,21 +556,35 @@ export default function App() {
 
     initSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      // Clear demo user if real session starts
-      if (session) localStorage.removeItem("demo_user");
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        localStorage.removeItem("demo_user");
+        setSession(null);
+        return;
+      }
+
+      if (session) {
+        setSession(session);
+        localStorage.removeItem("demo_user");
+      } else {
+        const demoUser = localStorage.getItem("demo_user");
+        if (demoUser) {
+          setSession({ user: JSON.parse(demoUser) });
+        } else {
+          setSession(null);
+        }
+      }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [configLoaded]);
 
-  if (loading) {
+  if (!configLoaded || loading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-slate-500 font-medium animate-pulse">Menyiapkan sistem...</p>
+          <p className="text-slate-500 font-medium animate-pulse">Menyiapkan sistem yang tangguh...</p>
         </div>
       </div>
     );
@@ -552,7 +594,6 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
-
         
         <Route path="/*" element={
           session ? (
