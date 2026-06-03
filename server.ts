@@ -127,8 +127,8 @@ async function startServer() {
   app.post("/api/admin/create-user", async (req, res) => {
     const { email, password, full_name, role } = req.body;
     
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return res.status(500).json({ error: "Konfigurasi server bermasalah: SUPABASE_SERVICE_ROLE_KEY belum diatur di menu Settings -> Secrets di AI Studio Anda. Silakan isi terlebih dahulu." });
@@ -180,8 +180,8 @@ async function startServer() {
   app.post("/api/admin/update-user", async (req, res) => {
     const { id, email, password, full_name, role, nip, gender, subject, phone, address, is_active } = req.body;
     
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return res.status(500).json({ error: "Konfigurasi server bermasalah: SUPABASE_SERVICE_ROLE_KEY belum diatur di menu Settings -> Secrets di AI Studio Anda. Silakan isi terlebih dahulu." });

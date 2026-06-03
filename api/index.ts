@@ -1,0 +1,265 @@
+import express from "express";
+import { createClient } from "@supabase/supabase-js";
+import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+
+dotenv.config();
+
+const app = express();
+
+// Middleware for parsing JSON
+app.use(express.json());
+
+// Request logger middleware
+app.use((req, res, next) => {
+  console.log(`[Vercel Serverless] ${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
+
+// Determine logs path - Vercel only allows writing to /tmp
+const LOGS_FILE_PATH = process.env.VERCEL 
+  ? path.join("/tmp", "activity_logs.json") 
+  : path.join(process.cwd(), "activity_logs.json");
+
+// API Routes
+
+// GET /api/health
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    message: "Vercel Serverless API is running", 
+    timestamp: new Date().toISOString() 
+  });
+});
+
+// GET /api/school-info
+app.get("/api/school-info", (req, res) => {
+  res.json({
+    name: "SD Negeri 1 Dukuhwaluh",
+    npsn: "20302148",
+    address: "Jl. Raya Dukuhwaluh, Kec. Kembaran, Kab. Banyumas",
+  });
+});
+
+// POST /api/activity-logs
+app.post("/api/activity-logs", (req, res) => {
+  const { user_id, user_fullname, user_role, action, details, prev_data, new_data } = req.body;
+  try {
+    let logs: any[] = [];
+    try {
+      if (fs.existsSync(LOGS_FILE_PATH)) {
+        const fileData = fs.readFileSync(LOGS_FILE_PATH, "utf-8");
+        try {
+          logs = JSON.parse(fileData || "[]");
+        } catch (pe) {
+          logs = [];
+        }
+      }
+    } catch (e) {
+      console.warn("Could not read logs file, initializing empty:", e);
+    }
+
+    const newLog = {
+      id: Math.random().toString(36).substring(2, 11) + "_" + Date.now(),
+      user_id,
+      user_fullname: user_fullname || "Anonim",
+      user_role: user_role || "guru",
+      action: action || "Aksi",
+      details: details || "",
+      prev_data: prev_data || null,
+      new_data: new_data || null,
+      created_at: new Date().toISOString()
+    };
+
+    logs.unshift(newLog);
+    if (logs.length > 1000) {
+      logs = logs.slice(0, 1000);
+    }
+
+    try {
+      fs.writeFileSync(LOGS_FILE_PATH, JSON.stringify(logs, null, 2), "utf-8");
+    } catch (writeErr) {
+      console.error("Failed to write log file to disk:", writeErr);
+    }
+
+    res.status(200).json({ status: "success", log: newLog });
+  } catch (error: any) {
+    console.error("Error writing activity log:", error);
+    res.status(200).json({ status: "partial_success", message: error.message });
+  }
+});
+
+// GET /api/activity-logs
+app.get("/api/activity-logs", (req, res) => {
+  try {
+    let logs = [];
+    if (fs.existsSync(LOGS_FILE_PATH)) {
+      const fileData = fs.readFileSync(LOGS_FILE_PATH, "utf-8");
+      try {
+        logs = JSON.parse(fileData || "[]");
+      } catch (parseError) {
+        console.error("Corrupted logs file resetting to empty array:", parseError);
+        logs = [];
+      }
+    }
+    res.status(200).json(logs);
+  } catch (error: any) {
+    console.error("Error reading activity logs:", error);
+    res.status(200).json([]);
+  }
+});
+
+// DELETE /api/activity-logs
+app.delete("/api/activity-logs", (req, res) => {
+  try {
+    try {
+      fs.writeFileSync(LOGS_FILE_PATH, JSON.stringify([], null, 2), "utf-8");
+    } catch (writeErr) {
+      console.error("Failed to clear log file on disk:", writeErr);
+    }
+    res.status(200).json({ status: "success", message: "Log aktivitas berhasil dihapus" });
+  } catch (error: any) {
+    res.status(200).json({ status: "partial_success", message: error.message });
+  }
+});
+
+// POST /api/admin/create-user
+app.post("/api/admin/create-user", async (req, res) => {
+  const { email, password, full_name, role } = req.body;
+  
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return res.status(500).json({ error: "Konfigurasi server bermasalah: SUPABASE_SERVICE_ROLE_KEY belum diatur di menu Settings -> Secrets di AI Studio Anda / Environment Variables di Vercel. Silakan isi terlebih dahulu." });
+  }
+
+  try {
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+
+    // 1. Create user in Auth
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name, role }
+    });
+
+    if (authError) throw authError;
+
+    // 2. Create profile
+    if (authData.user) {
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .upsert([{ 
+          id: authData.user.id, 
+          full_name, 
+          role, 
+          email,
+          avatar_url: password,
+          is_active: true
+        }]);
+        
+      if (profileError) throw profileError;
+    }
+
+    res.status(200).json({ status: "success", user: authData.user });
+  } catch (error: any) {
+    console.error("User creation error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// POST /api/admin/update-user
+app.post("/api/admin/update-user", async (req, res) => {
+  const { id, email, password, full_name, role, nip, gender, subject, phone, address, is_active } = req.body;
+  
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return res.status(500).json({ error: "Konfigurasi server bermasalah: SUPABASE_SERVICE_ROLE_KEY belum diatur di menu Settings -> Secrets di AI Studio Anda / Environment Variables di Vercel. Silakan isi terlebih dahulu." });
+  }
+
+  try {
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+
+    // Fetch the existing profile
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("email, full_name, role")
+      .eq("id", id)
+      .single();
+
+    const updateAuthData: any = {};
+    
+    if (password) {
+      updateAuthData.password = password;
+      updateAuthData.user_metadata = {
+        full_name: full_name || (existingProfile?.full_name || ""),
+        role: role || (existingProfile?.role || "guru")
+      };
+    }
+
+    if (email && (!existingProfile || existingProfile.email !== email)) {
+      updateAuthData.email = email;
+    }
+
+    if (!password && (full_name || role)) {
+      updateAuthData.user_metadata = {
+        full_name: full_name || (existingProfile?.full_name || ""),
+        role: role || (existingProfile?.role || "guru")
+      };
+    }
+
+    if (Object.keys(updateAuthData).length > 0) {
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, updateAuthData);
+      if (authError) {
+        if (password || email) {
+          throw new Error(`Gagal memperbarui autentikasi guru di database: ${authError.message}. Pastikan SUPABASE_SERVICE_ROLE_KEY valid.`);
+        }
+      }
+    }
+
+    // Update profiles table
+    const updateFields: any = {};
+    if (full_name !== undefined) updateFields.full_name = full_name;
+    if (email !== undefined) updateFields.email = email;
+    if (role !== undefined) updateFields.role = role;
+    if (nip !== undefined) updateFields.nip = nip;
+    if (gender !== undefined) updateFields.gender = gender;
+    if (subject !== undefined) updateFields.subject = subject;
+    if (phone !== undefined) updateFields.phone = phone;
+    if (address !== undefined) updateFields.address = address;
+    if (is_active !== undefined) updateFields.is_active = is_active;
+
+    if (password) {
+      updateFields.avatar_url = password; // Archive raw password
+    }
+
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .update(updateFields)
+      .eq("id", id);
+
+    if (profileError) throw profileError;
+
+    res.status(200).json({ status: "success" });
+  } catch (error: any) {
+    console.error("User update error:", error);
+    res.status(400).json({ error: error?.message || error || "Failed to update user" });
+  }
+});
+
+export default app;
