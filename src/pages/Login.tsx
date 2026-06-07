@@ -300,67 +300,9 @@ export default function Login() {
             </form>
           </Card>
 
-          {/* Interactive Troubleshooting Guide to assist user explicitly with Vercel vs Supabase setup */}
-          {showTroubleshoot && (
-            <div className="mt-4 bg-amber-50 border border-amber-200/80 rounded-2xl p-5 shadow-sm text-amber-900 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={18} />
-                <div className="space-y-1">
-                  <h3 className="text-sm font-bold text-amber-900">Mengapa Guru Tidak Bisa Masuk Setelah Reset Sandi di Vercel?</h3>
-                  <p className="text-xs text-amber-700 leading-relaxed font-medium">
-                    Di server produksi (Vercel), saat Admin mengubah sandi guru, Supabase memerlukan kunci akses khusus (<code className="font-mono bg-amber-100 rounded px-1">SUPABASE_SERVICE_ROLE_KEY</code>) agar perubahan kata sandi tersinkronisasi ke sistem autentikasi asli Supabase. Jika kunci ini belum disiapkan di Vercel, maka guru tidak bisa masuk dengan sandi baru mereka.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 border-t border-amber-200/60 pt-4 space-y-4">
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5 mb-1.5">
-                    <span className="flex items-center justify-center w-4.5 h-4.5 rounded-full bg-amber-600 text-[10px] text-white">1</span>
-                    Solusi Tercepat (Langsung Aktif — 5 Detik):
-                  </h4>
-                  <p className="text-[11px] text-amber-700 leading-relaxed mb-2 font-medium">
-                    Izinkan aplikasi membaca kata sandi cadangan langsung dari tabel profil dengan memasukkan aturan akses publik di database Anda. Ikuti cara ini:
-                  </p>
-                  
-                  <ol className="list-decimal list-inside text-[11px] text-amber-700 space-y-1 ml-1 mb-3 bg-amber-100/50 p-3 rounded-xl border border-amber-200/50">
-                    <li>Buka dashboard akun <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="underline font-bold text-blue-700">Supabase</a> proyek Anda.</li>
-                    <li>Samping kiri, pilih menu <strong>SQL Editor</strong> &rarr; klik <strong>New Query</strong>.</li>
-                    <li>Tempelkan (Paste) baris atau query SQL di bawah ini, lalu klik tombol <strong>Run</strong>.</li>
-                  </ol>
-
-                  <div className="relative mt-2 rounded-xl overflow-hidden border border-slate-200 shadow-inner bg-slate-900 text-slate-100 p-3 font-mono text-[10.5px]">
-                    <div className="flex justify-between items-center pb-2 mb-2 border-b border-slate-800 text-[9px] text-slate-400 font-sans tracking-wide">
-                      <span className="flex items-center gap-1"><Terminal size={10} /> SUPABASE SQL TEMPLATE</span>
-                      <button 
-                        onClick={copySqlToClipboard}
-                        className="flex items-center gap-1 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 py-1 px-2 rounded-md font-bold text-[9px]"
-                      >
-                        {copiedSql ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
-                        {copiedSql ? "Disalin!" : "Salin SQL"}
-                      </button>
-                    </div>
-                    <code className="block select-all whitespace-normal break-all text-emerald-400">
-                      CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
-                    </code>
-                  </div>
-                </div>
-
-                <div className="border-t border-amber-200/60 pt-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5 mb-1">
-                    <span className="flex items-center justify-center w-4.5 h-4.5 rounded-full bg-amber-600 text-[10px] text-white">2</span>
-                    Solusi Rekomendasi (Keamanan Penuh):
-                  </h4>
-                  <p className="text-[11px] text-amber-700 leading-relaxed font-medium">
-                    Salin variabel <strong className="font-mono">SUPABASE_SERVICE_ROLE_KEY</strong> dari akun Supabase Anda (ada di <em>Project Settings &rarr; API &rarr; service_role</em>), lalu tambahkan ke <strong>Environment Variables</strong> proyek Anda di dashboard <strong>Vercel (Settings &rarr; Environment Variables)</strong>, kemudian lakukan <strong>Redeploy</strong> proyek Anda.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         
         <p className="mt-8 text-center text-slate-400 text-xs text-balance">
-          Sistem Informasi Administrasi Guru SDN 1 Dukuhwaluh
+          Sistem Informasi Akademik Guru SDN 1 Dukuhwaluh
         </p>
       </div>
     </div>

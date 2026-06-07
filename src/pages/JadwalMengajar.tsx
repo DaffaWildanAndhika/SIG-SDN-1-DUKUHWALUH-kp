@@ -48,6 +48,7 @@ export default function JadwalMengajar() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string>("");
+  const [userProfileIds, setUserProfileIds] = useState<string[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [weeklyMaterials, setWeeklyMaterials] = useState<any[]>([]);
   const [guruList, setGuruList] = useState<any[]>([]);
@@ -126,17 +127,47 @@ export default function JadwalMengajar() {
   }, [selectedSchedule, isMaterialDialogOpen]);
 
   const checkUserRole = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    // 1. Get auth user from standard session or fallback to mock bypass / local storage demo_user
+    let user: any = null;
+    try {
+      const { data } = await supabase.auth.getUser();
+      user = data?.user;
+    } catch (e) {
+      console.warn("Failed standard auth user check:", e);
+    }
+
+    if (!user) {
+      const demoUserStr = localStorage.getItem("demo_user");
+      if (demoUserStr) {
+        try {
+          user = JSON.parse(demoUserStr);
+        } catch (e) {}
+      }
+    }
+
     if (user) {
       setCurrentUser(user);
-      // Check database profile for most accurate role
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role, full_name')
-        .eq('id', user.id)
-        .single();
       
-      const role = profile?.role || user.user_metadata?.role || "guru";
+      // 2. Fetch all profiles matching user's id OR email address to handle duplicate accounts (auth signups vs manual pre-creation)
+      let matchedIds: string[] = [user.id];
+      let role = "guru";
+      
+      try {
+        const { data: matchedProfiles, error: profileErr } = await supabase
+          .from('profiles')
+          .select('id, role, full_name, email')
+          .or(`id.eq.${user.id},email.eq.${user.email}`);
+        
+        if (!profileErr && matchedProfiles && matchedProfiles.length > 0) {
+          matchedIds = matchedProfiles.map(p => p.id);
+          const primaryProfile = matchedProfiles.find(p => p.id === user.id) || matchedProfiles[0];
+          role = primaryProfile?.role || user.user_metadata?.role || "guru";
+        }
+      } catch (err) {
+        console.warn("Failed resolving matches profiles:", err);
+      }
+
+      setUserProfileIds(matchedIds);
       setUserRole(role);
       const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
       const isAdminRole = role === "admin" || isSpecialAdmin;
@@ -187,19 +218,11 @@ export default function JadwalMengajar() {
     try {
       // 1. Fetch Fixed Schedules for the year
       // We use !inner hint to allow filtering on the joined table
-      let query = supabase
+      const { data: scheds, error: schedError } = await supabase
         .from('teaching_schedules')
         .select('*, guru:profiles(full_name), class:classes!inner(name, academic_year)')
-        .eq('classes.academic_year', selectedYear);
-
-      // Role-based filtering
-      const isAdmin = userRole === "admin" || currentUser?.email?.includes("admin@sekolah");
-      
-      if (!isAdmin || selectedGuruFilter !== "all") {
-        query = query.eq('guru_id', isAdmin ? selectedGuruFilter : currentUser?.id);
-      }
-
-      const { data: scheds, error: schedError } = await query.order('start_time', { ascending: true });
+        .eq('classes.academic_year', selectedYear)
+        .order('start_time', { ascending: true });
       
       if (schedError) throw schedError;
       setSchedules(scheds || []);
@@ -230,7 +253,7 @@ export default function JadwalMengajar() {
     if (!canManage) return;
 
     const isAdmin = userRole === "admin" || currentUser?.email?.includes("admin@sekolah");
-    const finalGuruId = isAdmin ? formData.guru_id : currentUser?.id;
+    const finalGuruId = isAdmin ? formData.guru_id : (userProfileIds.length > 0 ? userProfileIds[0] : currentUser?.id);
 
     if (!finalGuruId || !formData.class_id) {
       toast.error("Silakan pilih guru dan kelas");
@@ -239,7 +262,11 @@ export default function JadwalMengajar() {
 
     if (!isAdmin) {
       const selectedCls = classList.find(c => c.id === formData.class_id);
-      if (!selectedCls || selectedCls.wali_kelas_id !== currentUser?.id) {
+      const isWaliKelas = selectedCls && (
+        selectedCls.wali_kelas_id === currentUser?.id || 
+        userProfileIds.includes(selectedCls.wali_kelas_id || "")
+      );
+      if (!selectedCls || !isWaliKelas) {
         toast.error("Anda hanya dapat menambahkan jadwal mengajar untuk kelas di mana Anda terdaftar sebagai Wali Kelas.");
         return;
       }
@@ -359,7 +386,10 @@ export default function JadwalMengajar() {
   };
 
   const handleBulkFill = async () => {
-    if (schedules.length === 0) {
+    const isAdmin = userRole === "admin" || currentUser?.email?.includes("admin@sekolah");
+    const targetSchedules = isAdmin ? filteredSchedules : schedules.filter(s => userProfileIds.includes(s.guru_id) || s.guru_id === currentUser?.id);
+
+    if (targetSchedules.length === 0) {
       toast.error("Tidak ada jadwal yang tersedia untuk diproses");
       return;
     }
@@ -371,7 +401,7 @@ export default function JadwalMengajar() {
     setLoading(true);
     try {
       const payloads: any[] = [];
-      schedules.forEach(sched => {
+      targetSchedules.forEach(sched => {
         for (let i = 1; i <= 20; i++) {
           payloads.push({
             schedule_id: sched.id,
@@ -463,20 +493,39 @@ export default function JadwalMengajar() {
     }
   };
 
-  const daySchedules = schedules.filter(s => {
+  const filteredSchedules = schedules.filter(s => {
+    const isAdmin = userRole === "admin" || currentUser?.email?.includes("admin@sekolah");
+    if (!isAdmin || selectedGuruFilter !== "all") {
+      if (!isAdmin) {
+        // Find matching schedules that belong to any profile associated with this teacher
+        return userProfileIds.includes(s.guru_id) || s.guru_id === currentUser?.id;
+      }
+      const targetGuruId = selectedGuruFilter;
+      if (!targetGuruId || targetGuruId === "undefined") {
+        return false;
+      }
+      return s.guru_id === targetGuruId;
+    }
+    return true;
+  });
+
+  const daySchedules = filteredSchedules.filter(s => {
     const matchesDay = s.day === activeDay;
     const matchesClass = selectedClassFilter === "all" || s.class_id === selectedClassFilter;
     const matchesSubject = !selectedSubjectFilter || s.subject.toLowerCase().includes(selectedSubjectFilter.toLowerCase());
     return matchesDay && matchesClass && matchesSubject;
   });
 
-  // Calculate teacher workload
+  // Calculate teacher workload (all teachers with active teaching hours in this academic year)
   const teacherWorkload = schedules.reduce((acc: any[], curr) => {
+    if (!curr.start_time || !curr.end_time) return acc;
     const guruName = curr.guru?.full_name || "Unknown";
     const startTime = new Date(`1970-01-01T${curr.start_time}`);
     const endTime = new Date(`1970-01-01T${curr.end_time}`);
     const diffHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
     
+    if (isNaN(diffHours) || diffHours <= 0) return acc;
+
     const existing = acc.find(a => a.name === guruName);
     if (existing) {
       existing.hours += diffHours;
@@ -491,7 +540,7 @@ export default function JadwalMengajar() {
   const isUserAdmin = userRole === "admin" || currentUser?.email?.includes("admin@sekolah");
   const dialogClasses = isUserAdmin 
     ? activeClasses 
-    : activeClasses.filter(c => c.wali_kelas_id === currentUser?.id);
+    : activeClasses.filter(c => c.wali_kelas_id && (userProfileIds.includes(c.wali_kelas_id) || c.wali_kelas_id === currentUser?.id));
 
   const colors = ["bg-blue-600", "bg-indigo-600", "bg-violet-600"];
 
@@ -964,7 +1013,7 @@ export default function JadwalMengajar() {
                   </Select>
                 ) : (
                   <div className="h-12 bg-slate-100 border border-slate-200 rounded-xl flex items-center px-4 font-black text-slate-400 text-sm italic uppercase tracking-wider">
-                    {guruList.find(g => g.id === currentUser?.id)?.full_name || "Data Guru Anda"}
+                    {guruList.find(g => userProfileIds.includes(g.id) || g.id === currentUser?.id)?.full_name || currentUser?.user_metadata?.full_name || "Data Guru Anda"}
                   </div>
                 )}
               </div>

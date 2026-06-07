@@ -20,7 +20,6 @@ const getClient = (): SupabaseClient => {
   const url = dynamicUrl || import.meta.env.VITE_SUPABASE_URL;
   const key = dynamicKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
   
-  // Basic validation and check for common placeholder strings
   const isValid = url && 
                   key && 
                   url !== "" && 
@@ -39,11 +38,7 @@ const getClient = (): SupabaseClient => {
   return client;
 };
 
-/**
- * Lazy-initialized Supabase client.
- * This proxy avoids crashing the app on load if environment variables are missing.
- * It will only throw an error when a property or method is accessed.
- */
+
 export const supabase = new Proxy({} as SupabaseClient, {
   get: (_, prop) => {
     const c = getClient();

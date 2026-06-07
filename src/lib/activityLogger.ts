@@ -60,7 +60,7 @@ export async function logActivity(action: string, details: string, prevData?: an
         created_at: new Date().toISOString()
       };
 
-      // Store in localStorage as immediate backup for hybrid loading
+      
       try {
         const existingStr = localStorage.getItem("activity_logs_backup") || "[]";
         let existingLogs = JSON.parse(existingStr);

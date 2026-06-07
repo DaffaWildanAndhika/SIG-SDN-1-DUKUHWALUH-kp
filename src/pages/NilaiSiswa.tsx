@@ -45,7 +45,7 @@ export default function NilaiSiswa() {
     "Pendidikan Pancasila",
     "Bahasa Indonesia",
     "Matematika",
-    "IPA",
+    "IPAS",
     "Seni Budaya",
     "PJOK",
     "Bahasa Inggris",
@@ -84,20 +84,49 @@ export default function NilaiSiswa() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
+      let role = "guru";
+      let matchedUserProfileIds: string[] = [user.id];
+
+      try {
+        const { data: profilesById } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .eq('id', user.id);
+
+        let profilesByEmail: any[] = [];
+        if (user.email) {
+          const { data } = await supabase
+            .from('profiles')
+            .select('id, role')
+            .ilike('email', user.email.trim());
+          if (data) {
+            profilesByEmail = data;
+          }
+        }
+
+        // Combine unique profiles
+        const uniqueProfilesMap = new Map<string, any>();
+        [...(profilesById || []), ...profilesByEmail].forEach(p => {
+          uniqueProfilesMap.set(p.id, p);
+        });
+        const matchedProfiles = Array.from(uniqueProfilesMap.values());
+        
+        if (matchedProfiles.length > 0) {
+          matchedUserProfileIds = matchedProfiles.map(p => p.id);
+          const primaryProfile = matchedProfiles.find(p => p.id === user.id) || matchedProfiles[0];
+          role = primaryProfile?.role || user.user_metadata?.role || "guru";
+        }
+      } catch (err) {
+        console.warn("Failed resolving profiles in NilaiSiswa.tsx:", err);
+      }
       
-      const role = profile?.role || user.user_metadata?.role || "guru";
       const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
       const isAdminRole = role === "admin" || isSpecialAdmin;
 
       let query = supabase.from('classes').select('*').order('name');
       
       if (!isAdminRole) {
-        query = query.eq('wali_kelas_id', user.id);
+        query = query.in('wali_kelas_id', matchedUserProfileIds);
       }
 
       const { data, error } = await query;
@@ -155,7 +184,7 @@ export default function NilaiSiswa() {
       // 2. Fetch all Scope Grades for this subject to calculate average formative
       const { data: harianData, error: harianError } = await supabase
         .from('student_grades')
-        .select('student_id, average_score')
+        .select('student_id, scope_name, tp1, tp2, tp3, tp4, average_score')
         .eq('class_id', selectedClassId)
         .eq('subject', selectedSubject);
       
@@ -174,24 +203,38 @@ export default function NilaiSiswa() {
       studentsData?.forEach(student => {
         // Calculate average formative from all babs
         const studentHarian = harianData?.filter(h => h.student_id === student.id) || [];
-        const avgFormative = studentHarian.length > 0
-          ? studentHarian.reduce((acc, curr) => acc + (curr.average_score || 0), 0) / studentHarian.length
+        
+        // Recalculate each scope's average on-the-fly to handle null or uncalculated database values
+        const scopeAverages = studentHarian.map(h => {
+          let currentAvg = h.average_score || 0;
+          const tps = [h.tp1, h.tp2, h.tp3, h.tp4].map(v => parseFloat(v) || 0);
+          const activeTps = tps.filter(v => v > 0);
+          if (activeTps.length > 0) {
+            currentAvg = activeTps.reduce((a, b) => a + b, 0) / activeTps.length;
+          }
+          return currentAvg;
+        });
+
+        const activeScopeAverages = scopeAverages.filter(v => v > 0);
+        const avgFormative = activeScopeAverages.length > 0
+          ? activeScopeAverages.reduce((acc, curr) => acc + curr, 0) / activeScopeAverages.length
           : 0;
         
         const existingSem = semData?.find(s => s.student_id === student.id);
+        const uts = existingSem?.uts || 0;
+        const uas = existingSem?.uas || 0;
+        const computedAvgFormative = Math.round(avgFormative * 100) / 100;
+        
+        // Always calculate final score dynamically to keep it up to date with new TP scores!
+        const finalScore = Math.round(((computedAvgFormative + uts + uas) / 3) * 100) / 100;
+
         aggregatedGrades[student.id] = {
-          average_formative: Math.round(avgFormative * 100) / 100,
-          uts: existingSem?.uts || 0,
-          uas: existingSem?.uas || 0,
-          final_score: existingSem?.final_score || 0,
+          average_formative: computedAvgFormative,
+          uts,
+          uas,
+          final_score: finalScore,
           id: existingSem?.id
         };
-        
-        // Initial calc for final score if not exists
-        if (!existingSem) {
-           const finalScore = (aggregatedGrades[student.id].average_formative + 0 + 0) / 3;
-           aggregatedGrades[student.id].final_score = Math.round(finalScore * 100) / 100;
-        }
       });
 
       setStudents(studentsData || []);
@@ -254,8 +297,10 @@ export default function NilaiSiswa() {
       const studentGrades = { ...prev[studentId], [field]: clampedValue };
       
       // Calculate average (Summatif Bab)
-      // Only average the TP scores for 'harian' mode
-      const tpAvg = (studentGrades.tp1 + studentGrades.tp2 + studentGrades.tp3 + studentGrades.tp4) / 4;
+      // Only average the TP scores that are actually filled (> 0)
+      const tps = [studentGrades.tp1, studentGrades.tp2, studentGrades.tp3, studentGrades.tp4].map(v => parseFloat(v) || 0);
+      const activeTps = tps.filter(v => v > 0);
+      const tpAvg = activeTps.length > 0 ? activeTps.reduce((a, b) => a + b, 0) / activeTps.length : 0;
       
       studentGrades.average_score = Math.round(tpAvg * 100) / 100;
       
@@ -450,15 +495,24 @@ export default function NilaiSiswa() {
           row.push(scope?.tp2 || 0);
           row.push(scope?.tp3 || 0);
           row.push(scope?.tp4 || 0);
-          row.push(scope?.average_score || 0);
+          
+          let scopeAvg = scope?.average_score || 0;
+          if (scope) {
+            const tps = [scope.tp1, scope.tp2, scope.tp3, scope.tp4].map(v => parseFloat(v) || 0);
+            const activeTps = tps.filter(v => v > 0);
+            if (activeTps.length > 0) {
+              scopeAvg = activeTps.reduce((a, b) => a + b, 0) / activeTps.length;
+            }
+          }
+          row.push(Math.round(scopeAvg * 100) / 100);
 
           if (scope) {
-            totalAvgLM += scope.average_score || 0;
+            totalAvgLM += scopeAvg;
             countLM++;
           }
         });
 
-        const finalRataLM = countLM > 0 ? Math.round(totalAvgLM / countLM) : 0;
+        const finalRataLM = countLM > 0 ? Math.round((totalAvgLM / countLM) * 100) / 100 : 0;
 
         row.push(sGrade?.uts || 0);
         row.push(sGrade?.uas || 0);

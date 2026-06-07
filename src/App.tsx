@@ -114,9 +114,8 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
   const userRole = dbRole || user?.user_metadata?.role || "guru";
   const isSpecialAdmin = user?.email === "admin@sekolah.is" || user?.email === "admin@sekolah.id";
   const isAdmin = userRole === "admin" || isSpecialAdmin;
-  const isKepalaSekolah = userRole === "kepala_sekolah";
-  // isGuru is anyone who has teaching/management privileges (Guru, Kepala Sekolah, Admin)
-  const isGuru = userRole === "guru" || isKepalaSekolah || isAdmin;
+  
+  const isGuru = userRole === "guru" ||  isAdmin;
 
   const handleLogout = async () => {
     localStorage.removeItem("demo_user");
