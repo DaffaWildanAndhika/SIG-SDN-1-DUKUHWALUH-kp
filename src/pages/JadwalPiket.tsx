@@ -363,7 +363,7 @@ export default function JadwalPiket() {
                         <div>
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Durasi Tugas</p>
                           <p className="text-sm font-black text-slate-700 italic">
-                            {item.shift === 'Pagi' ? '06:30 — 13:00 WIB' : '13:00 — 16:00 WIB'}
+                            {item.shift === 'Pagi' ? '07:30 — 09:00 WIB' : '13:00 — 14:30 WIB'}
                           </p>
                         </div>
                       </div>
