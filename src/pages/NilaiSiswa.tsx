@@ -45,7 +45,7 @@ export default function NilaiSiswa() {
     "Pendidikan Pancasila",
     "Bahasa Indonesia",
     "Matematika",
-    "IPAS",
+    "IPA",
     "Seni Budaya",
     "PJOK",
     "Bahasa Inggris",

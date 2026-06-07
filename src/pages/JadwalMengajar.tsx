@@ -403,6 +403,40 @@ export default function JadwalMengajar() {
     }
   };
 
+  const handleSingleBulkFill = async (schedId: string, subject: string) => {
+    if (!confirm(`Otomatis lengkapi data progres mengajar untuk seluruh 20 minggu pada mata pelajaran "${subject}"?`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payloads: any[] = [];
+      for (let i = 1; i <= 20; i++) {
+        payloads.push({
+          schedule_id: schedId,
+          week_number: i,
+          chapter: "Jadwal Terdaftar",
+          sub_chapter: subject,
+          notes: "Diisi secara otomatis"
+        });
+      }
+
+      const { error } = await supabase
+        .from('lesson_materials')
+        .upsert(payloads, { onConflict: 'schedule_id,week_number' });
+
+      if (error) throw error;
+
+      await logActivity("Pengisian Otomatis Progres Mengajar", `Mengisi otomatis progres mengajar 20 minggu untuk pelajaran ${subject}`);
+      toast.success(`Jadwal 20 minggu untuk "${subject}" berhasil diisi secara otomatis!`);
+      fetchSchedules();
+    } catch (error: any) {
+      toast.error("Gagal mengisi otomatis: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (confirm("Hapus jadwal mengajar ini?")) {
       try {
@@ -450,7 +484,7 @@ export default function JadwalMengajar() {
       acc.push({ name: guruName, hours: diffHours });
     }
     return acc;
-  }, []).sort((a, b) => b.hours - a.hours).slice(0, 3);
+  }, []).sort((a, b) => b.hours - a.hours);
 
   const activeClasses = classList.filter(c => c.academic_year === selectedYear);
 
@@ -545,7 +579,7 @@ export default function JadwalMengajar() {
               </SelectTrigger>
               <SelectContent className="rounded-xl border-slate-100">
                 <SelectItem value="all" className="font-bold">Semua Kelas</SelectItem>
-                {activeClasses.map(cls => (
+                {dialogClasses.map(cls => (
                   <SelectItem key={cls.id} value={cls.id} className="font-bold">{cls.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -568,14 +602,7 @@ export default function JadwalMengajar() {
               </Select>
             )}
 
-            <Button 
-                onClick={handleBulkFill} 
-                disabled={loading || schedules.length === 0}
-                className="h-12 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-black shadow-lg shadow-indigo-200 rounded-xl transition-all flex items-center gap-2 group flex-1 md:flex-none"
-              >
-                <CalendarDays size={18} className="group-hover:-translate-y-0.5 transition-transform duration-300 text-indigo-200" /> 
-                <span>Isi 20 Minggu</span>
-              </Button>
+
 
             <Button 
                 onClick={() => { setSelectedSchedule(null); setIsDialogOpen(true); }} 

@@ -367,6 +367,20 @@ export default function JadwalPiket() {
                           </p>
                         </div>
                       </div>
+
+                      {item.picket_date && (
+                        <div className="flex items-center gap-5 relative z-10">
+                          <div className="w-10 h-10 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-center text-slate-400 group-hover:text-indigo-600 transition-colors duration-500">
+                            <CalendarIcon size={18} />
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Tanggal Piket</p>
+                            <p className="text-sm font-black text-slate-700">
+                              {new Date(item.picket_date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                       
                       <div className="flex items-center gap-5 relative z-10">
                         <div className="w-10 h-10 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-center text-slate-400 group-hover:text-amber-600 transition-colors duration-500">

@@ -1,5 +1,111 @@
 [
   {
+    "id": "amh8swad1_1780791396592",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menghapus Data Guru",
+    "details": "Menghapus data akun guru Eka Apriliansyah",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T00:16:36.592Z"
+  },
+  {
+    "id": "vxaeg4t3k_1780791377722",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengubah Data Guru",
+    "details": "Mengubah informasi data akun guru Wiji Pratomo S.Pd (NIP: -)",
+    "prev_data": {
+      "id": "eae42058-2e23-4f4c-ae6a-c0fffc8ebd19",
+      "nip": null,
+      "full_name": "wiji",
+      "role": "guru",
+      "avatar_url": null,
+      "gender": "Laki-laki",
+      "subject": "",
+      "phone": null,
+      "address": null,
+      "is_active": true,
+      "created_at": "2026-05-22T06:19:26.454467+00:00",
+      "updated_at": "2026-05-22T06:19:26.454467+00:00",
+      "email": "wiji@gmail.com"
+    },
+    "new_data": {
+      "nip": "",
+      "full_name": "Wiji Pratomo S.Pd",
+      "gender": "Laki-laki",
+      "subject": "",
+      "phone": "",
+      "is_active": true,
+      "address": "",
+      "email": "wiji@gmail.com",
+      "password": ""
+    },
+    "created_at": "2026-06-07T00:16:17.722Z"
+  },
+  {
+    "id": "7g38yzysl_1780791100298",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Jadwal Mengajar",
+    "details": "Menambah jadwal mengajar baru untuk Umi Indriyanti di 6A pelajaran Ilmu Pengetahuan Alam hari Senin pukul 07:30-08:30",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T00:11:40.298Z"
+  },
+  {
+    "id": "nng63wrhq_1780790687439",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Jadwal Mengajar",
+    "details": "Menambah jadwal mengajar baru untuk wiji di 5B pelajaran Matematika hari Senin pukul 08:30-09:30",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T00:04:47.439Z"
+  },
+  {
+    "id": "vmftny0jh_1780790527698",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Jadwal Mengajar",
+    "details": "Menambah jadwal mengajar baru untuk wiji di 5B pelajaran Ilmu Pengetahuan Alam hari Senin pukul 07:30-08:30",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T00:02:07.698Z"
+  },
+  {
+    "id": "tsv0zy93h_1780790469218",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengubah Data Kelas",
+    "details": "Mengubah informasi kelas 5B (Tahun Ajaran: 2025/2026)",
+    "prev_data": {
+      "id": "48252e64-b6b6-4a21-b2b6-9611ba9ac805",
+      "name": "5B",
+      "wali_kelas_id": null,
+      "academic_year": "2025/2026",
+      "created_at": "2026-05-17T14:34:11.106125+00:00",
+      "wali": null,
+      "student_count": [
+        {
+          "count": 0
+        }
+      ]
+    },
+    "new_data": {
+      "name": "5B",
+      "wali_kelas_id": "eae42058-2e23-4f4c-ae6a-c0fffc8ebd19",
+      "academic_year": "2025/2026"
+    },
+    "created_at": "2026-06-07T00:01:09.218Z"
+  },
+  {
     "id": "u310fj0my_1780460211149",
     "user_id": "d1c3d9b8-0d73-4933-acfc-1e79aaac0fa6",
     "user_fullname": "abimanyu S.Pd",

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Key, Mail, School, Shield, GraduationCap, User, Eye, EyeOff, Terminal, Copy, Check, AlertCircle, HelpCircle } from "lucide-react";
+import { Key, Mail, School, Shield, GraduationCap, User, Eye, EyeOff, Terminal, Copy, Check, AlertCircle, HelpCircle, Phone, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -231,6 +231,22 @@ export default function Login() {
             </div>
           </div>
 
+          {/* Login Info Panel */}
+          <div className="mx-6 my-2 bg-blue-50/70 border border-blue-100/80 rounded-2xl p-4 space-y-3 shadow-sm">
+            <div className="flex items-start gap-3">
+              <Info size={16} className="text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-[12px] text-slate-700 leading-relaxed font-medium">
+                Gunakan <strong className="text-blue-900">Email dan Password</strong> yang telah dibuat oleh administrator sekolah.
+              </p>
+            </div>
+            <div className="flex items-start gap-3 pt-2.5 border-t border-blue-100/60">
+              <Phone size={15} className="text-indigo-600 shrink-0 mt-0.5" />
+              <p className="text-[12px] text-slate-700 leading-relaxed font-medium">
+                Jika User Guru tidak bisa login atau mengalami kendala, silakan hubungi <a href="https://wa.me/6289659118111" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 hover:underline font-bold tracking-wide">+62 896-5911-8111</a>.
+              </p>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4 pt-2">
                 <div className="space-y-2">
@@ -344,7 +360,7 @@ export default function Login() {
           )}
         
         <p className="mt-8 text-center text-slate-400 text-xs text-balance">
-          Sistem Informasi Akademik Guru SDN 1 Dukuhwaluh
+          Sistem Informasi Administrasi Guru SDN 1 Dukuhwaluh
         </p>
       </div>
     </div>
