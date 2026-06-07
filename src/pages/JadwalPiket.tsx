@@ -572,8 +572,8 @@ export default function JadwalPiket() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-2xl">
-                      <SelectItem value="Pagi" className="font-black py-3 px-6 text-indigo-600 uppercase text-[10px]">PAGI (06:30 - 13:00)</SelectItem>
-                      <SelectItem value="Siang" className="font-black py-3 px-6 text-amber-600 uppercase text-[10px]">SIANG (13:00 - 16:00)</SelectItem>
+                      <SelectItem value="Pagi" className="font-black py-3 px-6 text-indigo-600 uppercase text-[10px]">PAGI (07:30 - 09:00)</SelectItem>
+                      <SelectItem value="Siang" className="font-black py-3 px-6 text-amber-600 uppercase text-[10px]">SIANG (13:00 - 14:30)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
