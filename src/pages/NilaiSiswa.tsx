@@ -265,7 +265,10 @@ export default function NilaiSiswa() {
           ? activeScopeAverages.reduce((acc, curr) => acc + curr, 0) / activeScopeAverages.length
           : 0;
 
-        const existingSem = semData?.find(s => s.student_id === student.id);
+        const targetAcademicYear = selectedSemester === "1"
+          ? `${selectedClass?.academic_year || "2025/2026"}-1`
+          : `${selectedClass?.academic_year || "2025/2026"}-2`;
+        const existingSem = semData?.find(s => s.student_id === student.id && s.academic_year === targetAcademicYear);
         const uts = existingSem?.uts || 0;
         const uas = existingSem?.uas || 0;
         const computedAvgFormative = Math.round(avgFormative * 100) / 100;
@@ -307,12 +310,18 @@ export default function NilaiSiswa() {
       // Fetch existing grades for this scope/subject
       let gradesData: any[] = [];
       if (selectedSubject && scopeName) {
+        const selectedClass = classList.find(c => c.id === selectedClassId);
+        const targetAcademicYear = selectedSemester === "1"
+          ? `${selectedClass?.academic_year || "2025/2026"}-1`
+          : `${selectedClass?.academic_year || "2025/2026"}-2`;
+
         const { data, error } = await supabase
           .from('student_grades')
           .select('*')
           .eq('class_id', selectedClassId)
           .eq('subject', selectedSubject)
-          .eq('scope_name', scopeName);
+          .eq('scope_name', scopeName)
+          .eq('academic_year', targetAcademicYear);
         if (error) throw error;
         gradesData = data || [];
       }
@@ -1038,7 +1047,7 @@ export default function NilaiSiswa() {
         doc.text(`Dukuhwaluh, ${todayStr}`, rightCenter, signY - 6, { align: 'center' });
         doc.text("Kepala Sekolah,", rightCenter, signY, { align: 'center' });
         doc.setFont('helvetica', 'bold');
-        doc.text("Drs. H. Mulyono, M.Pd", rightCenter, signY + 25, { align: 'center' });
+        doc.text("Umi Indriyanti, M.Pd", rightCenter, signY + 25, { align: 'center' });
         doc.setLineWidth(0.3);
         doc.line(rightCenter - 20, signY + 26, rightCenter + 20, signY + 26);
         doc.setFontSize(7);

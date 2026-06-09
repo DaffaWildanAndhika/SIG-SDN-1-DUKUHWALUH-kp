@@ -1,5 +1,16 @@
 [
   {
+    "id": "y1xiq4imp_1781004085980",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Menginput Nilai Rapor",
+    "details": "Menginput/memperbarui nilai rapor Semester 1 UTS/UAS mata pelajaran Pendidikan Pancasila untuk seluruh siswa di kelas 5A Test",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T11:21:25.980Z"
+  },
+  {
     "id": "170j6cgzg_1781003710931",
     "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
     "user_fullname": "Daffa Wildan Andhika S.Pd",
