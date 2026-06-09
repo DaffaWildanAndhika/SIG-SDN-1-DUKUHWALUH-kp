@@ -1,3 +1,8 @@
+/**
+ * BackupRestore.tsx
+ * Halaman administrasi sistem untuk melakukan pencadangan (backup) seluruh data database
+ * ke berkas eksternal JSON dan memulihkan (restore) data dari berkas cadangan JSON tersebut.
+ */
 import React, { useState, useRef } from "react";
 import { 
   Database, 

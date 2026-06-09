@@ -1,3 +1,8 @@
+/**
+ * backup-service.ts
+ * Layanan untuk melakukan ekspor (backup) seluruh data dari tabel Supabase ke format JSON,
+ * validasi skema data hasil backup, serta impor (restore) data JSON kembali ke database.
+ */
 import { supabase } from "./supabase";
 
 export interface BackupData {

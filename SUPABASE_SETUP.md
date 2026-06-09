@@ -51,6 +51,21 @@ CREATE TABLE teaching_schedules (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Lesson Materials (Teaching Journal)
+CREATE TABLE lesson_materials (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  schedule_id UUID REFERENCES teaching_schedules(id) ON DELETE CASCADE,
+  week_number INTEGER NOT NULL,
+  chapter TEXT, -- Materi Pokok / Bab
+  sub_chapter TEXT, -- Sub Bab / Topik Detail
+  notes TEXT, -- Catatan Tambahan / Cadangan Objek JSON
+  info TEXT, -- Informasi Jurnal Mengajar
+  jumlah_murid INTEGER, -- Jumlah Murid Hadir
+  tanggal_pembelajaran DATE DEFAULT CURRENT_DATE, -- Tanggal Pembelajaran
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  UNIQUE(schedule_id, week_number)
+);
+
 -- Picket Schedule
 CREATE TABLE picket_schedules (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

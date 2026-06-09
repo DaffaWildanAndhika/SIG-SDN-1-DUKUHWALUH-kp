@@ -1,3 +1,9 @@
+/**
+ * JadwalMengajar.tsx
+ * Halaman pengelolaan jadwal KBM (Jadwal Tetap) sekolah bagi Admin. Guru pengajar dapat melihat
+ * jadwal tetap mereka, melakukan penginputan jurnal progres mengajar mingguan (bab, sub-bab, catatan),
+ * serta pengisian otomatis jurnal mengajar (bulk fill) untuk kurun waktu 20 minggu akademik.
+ */
 import React, { useState, useEffect } from "react";
 import { 
   BookOpen, 
@@ -44,15 +50,22 @@ import { GraduationCap } from "lucide-react";
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
-export default function JadwalMengajar() {
+interface PageProps {
+  user?: any;
+  role?: string;
+}
+
+export default function JadwalMengajar({ user: propUser, role: propRole }: PageProps = {}) {
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [userRole, setUserRole] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(propUser || null);
+  const [userRole, setUserRole] = useState<string>(propRole || "");
   const [userProfileIds, setUserProfileIds] = useState<string[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [weeklyMaterials, setWeeklyMaterials] = useState<any[]>([]);
   const [guruList, setGuruList] = useState<any[]>([]);
   const [classList, setClassList] = useState<any[]>([]);
+  const [subjectList, setSubjectList] = useState<string[]>([]);
   const [academicYears, setAcademicYears] = useState<string[]>([]);
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>("all");
@@ -61,9 +74,12 @@ export default function JadwalMengajar() {
   const [canManage, setCanManage] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isMaterialDialogOpen, setIsMaterialDialogOpen] = useState(false);
+  const [isViewJournalOpen, setIsViewJournalOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
   const [activeDay, setActiveDay] = useState("Senin");
   const [selectedWeek, setSelectedWeek] = useState<string>("1");
+
+  const isAdmin = userRole === "admin" || currentUser?.email?.includes("admin@sekolah");
 
   // Fixed Schedule Form State
   const [formData, setFormData] = useState({
@@ -75,11 +91,13 @@ export default function JadwalMengajar() {
     end_time: "08:30"
   });
 
-  // Weekly Material Form State
+  // Weekly Journal Form State
   const [materialData, setMaterialData] = useState({
     chapter: "",
     sub_chapter: "",
-    notes: ""
+    info: "",
+    jumlah_murid: "",
+    tanggal_pembelajaran: ""
   });
 
   useEffect(() => {
@@ -89,7 +107,7 @@ export default function JadwalMengajar() {
 
   useEffect(() => {
     if (selectedYear) {
-      fetchSchedules();
+      fetchSchedules(true);
     }
   }, [selectedYear, selectedWeek]);
 
@@ -118,30 +136,52 @@ export default function JadwalMengajar() {
   useEffect(() => {
     if (selectedSchedule && isMaterialDialogOpen) {
       const material = weeklyMaterials.find(m => m.schedule_id === selectedSchedule.id);
+      
+      let info = material?.info || "";
+      let jumlah_murid = material?.jumlah_murid !== undefined && material?.jumlah_murid !== null ? String(material.jumlah_murid) : "";
+      let tanggal_pembelajaran = material?.tanggal_pembelajaran || new Date().toLocaleDateString("en-CA"); // format YYYY-MM-DD in local time
+
+      if (material?.notes) {
+        try {
+          const parsed = JSON.parse(material.notes);
+          if (parsed && typeof parsed === "object") {
+            if (parsed.info !== undefined) info = parsed.info;
+            if (parsed.jumlah_murid !== undefined && parsed.jumlah_murid !== null) jumlah_murid = String(parsed.jumlah_murid);
+            if (parsed.tanggal_pembelajaran !== undefined) tanggal_pembelajaran = parsed.tanggal_pembelajaran;
+          }
+        } catch (e) {
+          // notes is plain text, which is fine
+        }
+      }
+
       setMaterialData({
         chapter: material?.chapter || "",
         sub_chapter: material?.sub_chapter || "",
-        notes: material?.notes || ""
+        info: info,
+        jumlah_murid: jumlah_murid,
+        tanggal_pembelajaran: tanggal_pembelajaran
       });
     }
   }, [selectedSchedule, isMaterialDialogOpen]);
 
   const checkUserRole = async () => {
     // 1. Get auth user from standard session or fallback to mock bypass / local storage demo_user
-    let user: any = null;
-    try {
-      const { data } = await supabase.auth.getUser();
-      user = data?.user;
-    } catch (e) {
-      console.warn("Failed standard auth user check:", e);
-    }
-
+    let user: any = propUser;
     if (!user) {
-      const demoUserStr = localStorage.getItem("demo_user");
-      if (demoUserStr) {
-        try {
-          user = JSON.parse(demoUserStr);
-        } catch (e) {}
+      try {
+        const { data } = await supabase.auth.getUser();
+        user = data?.user;
+      } catch (e) {
+        console.warn("Failed standard auth user check:", e);
+      }
+
+      if (!user) {
+        const demoUserStr = localStorage.getItem("demo_user");
+        if (demoUserStr) {
+          try {
+            user = JSON.parse(demoUserStr);
+          } catch (e) {}
+        }
       }
     }
 
@@ -150,21 +190,23 @@ export default function JadwalMengajar() {
       
       // 2. Fetch all profiles matching user's id OR email address to handle duplicate accounts (auth signups vs manual pre-creation)
       let matchedIds: string[] = [user.id];
-      let role = "guru";
+      let role = propRole || "guru";
       
-      try {
-        const { data: matchedProfiles, error: profileErr } = await supabase
-          .from('profiles')
-          .select('id, role, full_name, email')
-          .or(`id.eq.${user.id},email.eq.${user.email}`);
-        
-        if (!profileErr && matchedProfiles && matchedProfiles.length > 0) {
-          matchedIds = matchedProfiles.map(p => p.id);
-          const primaryProfile = matchedProfiles.find(p => p.id === user.id) || matchedProfiles[0];
-          role = primaryProfile?.role || user.user_metadata?.role || "guru";
+      if (!propRole) {
+        try {
+          const { data: matchedProfiles, error: profileErr } = await supabase
+            .from('profiles')
+            .select('id, role, full_name, email')
+            .or(`id.eq.${user.id},email.eq.${user.email}`);
+          
+          if (!profileErr && matchedProfiles && matchedProfiles.length > 0) {
+            matchedIds = matchedProfiles.map(p => p.id);
+            const primaryProfile = matchedProfiles.find(p => p.id === user.id) || matchedProfiles[0];
+            role = primaryProfile?.role || user.user_metadata?.role || "guru";
+          }
+        } catch (err) {
+          console.warn("Failed resolving matches profiles:", err);
         }
-      } catch (err) {
-        console.warn("Failed resolving matches profiles:", err);
       }
 
       setUserProfileIds(matchedIds);
@@ -206,15 +248,47 @@ export default function JadwalMengajar() {
       } else if (years.length === 0) {
         setSelectedYear("");
       }
+
+      // Fetch dynamic subjects list
+      let fetchedSubjects: string[] = [
+        "Pendidikan Pancasila",
+        "Bahasa Indonesia",
+        "Matematika",
+        "IPA",
+        "Seni Budaya",
+        "PJOK",
+        "Bahasa Inggris",
+        "Agama"
+      ];
+      try {
+        const { data: dbSubs, error: subError } = await supabase.from('subjects').select('name').order('name');
+        if (!subError && dbSubs && dbSubs.length > 0) {
+          fetchedSubjects = dbSubs.map(s => s.name);
+        } else {
+          const cached = localStorage.getItem("subjects_list");
+          if (cached) {
+            fetchedSubjects = JSON.parse(cached).map((s: any) => s.name);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed fetching subjects, using default/local storage subjects:", err);
+        const cached = localStorage.getItem("subjects_list");
+        if (cached) {
+          fetchedSubjects = JSON.parse(cached).map((s: any) => s.name);
+        }
+      }
+      setSubjectList(fetchedSubjects);
     } catch (error: any) {
       console.error("Error fetching initial data:", error);
       toast.error("Gagal memuat data pendukung: " + error.message);
     }
   };
 
-  const fetchSchedules = async () => {
+  const fetchSchedules = async (isInitial = false) => {
     if (!selectedYear) return;
-    setLoading(true);
+    if (isInitial || schedules.length === 0) {
+      setLoading(true);
+    }
     try {
       // 1. Fetch Fixed Schedules for the year
       // We use !inner hint to allow filtering on the joined table
@@ -250,9 +324,11 @@ export default function JadwalMengajar() {
 
   const handleSaveSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManage) return;
+    if (!isAdmin) {
+      toast.error("Hanya admin yang dapat mengelola jadwal mengajar");
+      return;
+    }
 
-    const isAdmin = userRole === "admin" || currentUser?.email?.includes("admin@sekolah");
     const finalGuruId = isAdmin ? formData.guru_id : (userProfileIds.length > 0 ? userProfileIds[0] : currentUser?.id);
 
     if (!finalGuruId || !formData.class_id) {
@@ -272,7 +348,7 @@ export default function JadwalMengajar() {
       }
     }
 
-    setLoading(true);
+    setSaving(true);
     try {
       // Check for overlaps
       const { data: conflicts, error: checkError } = await supabase
@@ -303,7 +379,7 @@ export default function JadwalMengajar() {
         });
         const conflictClassName = Array.isArray(conflict?.class) ? (conflict.class as any)[0]?.name : (conflict?.class as any)?.name;
         toast.error(`Bentrok Jadwal! Anda sudah memiliki jadwal Mengajar ${conflict?.subject} di kelas ${conflictClassName || "Lain"} pada jam tersebut.`);
-        setLoading(false);
+        setSaving(false);
         return;
       }
 
@@ -353,7 +429,7 @@ export default function JadwalMengajar() {
     } catch (error: any) {
       toast.error("Gagal menyimpan: " + error.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -361,27 +437,55 @@ export default function JadwalMengajar() {
     e.preventDefault();
     if (!selectedSchedule) return;
 
-    setLoading(true);
+    setSaving(true);
     try {
+      const numMurid = materialData.jumlah_murid ? parseInt(materialData.jumlah_murid) : null;
+      const notesJson = JSON.stringify({
+        info: materialData.info,
+        jumlah_murid: numMurid,
+        tanggal_pembelajaran: materialData.tanggal_pembelajaran || null
+      });
+
       const payload = {
         schedule_id: selectedSchedule.id,
         week_number: parseInt(selectedWeek),
-        ...materialData
+        chapter: materialData.chapter,
+        sub_chapter: materialData.sub_chapter,
+        info: materialData.info,
+        jumlah_murid: numMurid,
+        tanggal_pembelajaran: materialData.tanggal_pembelajaran || null,
+        notes: notesJson
       };
 
-      const { error } = await supabase
+      let { error } = await supabase
         .from('lesson_materials')
         .upsert(payload, { onConflict: 'schedule_id,week_number' });
 
+      // Fallback: columns don't exist in Supabase yet, save via notes JSON
+      if (error && (error.code === 'PGRST204' || error.message.includes("Could not find the"))) {
+        const fallbackPayload = {
+          schedule_id: selectedSchedule.id,
+          week_number: parseInt(selectedWeek),
+          chapter: materialData.chapter,
+          sub_chapter: materialData.sub_chapter,
+          notes: notesJson
+        };
+        const res = await supabase
+          .from('lesson_materials')
+          .upsert(fallbackPayload, { onConflict: 'schedule_id,week_number' });
+        error = res.error;
+      }
+
       if (error) throw error;
-      await logActivity("Mengisi Progres Materi", `Mengisi materi mengajar Minggu ${selectedWeek} untuk pelajaran ${selectedSchedule.subject} (Bab: ${materialData.chapter || '-'}, Sub-Bab: ${materialData.sub_chapter || '-'})`);
-      toast.success(`Materi Minggu ${selectedWeek} diperbarui`);
+
+      await logActivity("Mengisi Jurnal Mengajar", `Mengisi jurnal mengajar Minggu ${selectedWeek} untuk pelajaran ${selectedSchedule.subject} (Bab: ${materialData.chapter || '-'}, Sub-Bab: ${materialData.sub_chapter || '-'})`);
+      toast.success(`Jurnal Minggu ${selectedWeek} diperbarui`);
       setIsMaterialDialogOpen(false);
       fetchSchedules();
     } catch (error: any) {
-      toast.error("Gagal menyimpan materi: " + error.message);
+      toast.error("Gagal menyimpan jurnal: " + error.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -398,7 +502,7 @@ export default function JadwalMengajar() {
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
     try {
       const payloads: any[] = [];
       targetSchedules.forEach(sched => {
@@ -429,7 +533,7 @@ export default function JadwalMengajar() {
     } catch (error: any) {
       toast.error("Gagal mengisi otomatis: " + error.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -438,7 +542,7 @@ export default function JadwalMengajar() {
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
     try {
       const payloads: any[] = [];
       for (let i = 1; i <= 20; i++) {
@@ -463,11 +567,15 @@ export default function JadwalMengajar() {
     } catch (error: any) {
       toast.error("Gagal mengisi otomatis: " + error.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
+    if (!isAdmin) {
+      toast.error("Hanya admin yang dapat menghapus jadwal mengajar");
+      return;
+    }
     if (confirm("Hapus jadwal mengajar ini?")) {
       try {
         // Fetch details before delete
@@ -653,13 +761,15 @@ export default function JadwalMengajar() {
 
 
 
-            <Button 
+            {isAdmin && (
+              <Button 
                 onClick={() => { setSelectedSchedule(null); setIsDialogOpen(true); }} 
                 className="h-12 px-6 bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-200 rounded-xl transition-all flex items-center gap-2 group flex-1 md:flex-none"
               >
                 <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" /> 
-                <span>{userRole === "admin" ? "Jadwal" : "Sesi KBM"}</span>
+                <span>Jadwal</span>
               </Button>
+            )}
           </div>
         </div>
       </div>
@@ -706,6 +816,23 @@ export default function JadwalMengajar() {
                 ) : daySchedules.length > 0 ? (
                   daySchedules.map((row, index) => {
                     const material = getWeekMaterial(row.id);
+                    let info = material?.info || "";
+                    let jumlahMurid = material?.jumlah_murid !== undefined && material?.jumlah_murid !== null ? String(material.jumlah_murid) : "";
+                    let tanggalPembelajaran = material?.tanggal_pembelajaran || "";
+
+                    if (material?.notes) {
+                      try {
+                        const parsed = JSON.parse(material.notes);
+                        if (parsed && typeof parsed === "object") {
+                          if (parsed.info !== undefined) info = parsed.info;
+                          if (parsed.jumlah_murid !== undefined && parsed.jumlah_murid !== null) jumlahMurid = String(parsed.jumlah_murid);
+                          if (parsed.tanggal_pembelajaran !== undefined) tanggalPembelajaran = parsed.tanggal_pembelajaran;
+                        }
+                      } catch (e) {
+                        // notes is plain text, which is fine
+                      }
+                    }
+
                     return (
                       <motion.tr
                         layout
@@ -729,36 +856,34 @@ export default function JadwalMengajar() {
                           </div>
                         </TableCell>
                         <TableCell className="border-r-2 border-slate-900">
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center gap-2">
-                              <span className="font-black text-slate-900 text-lg tracking-tight group-hover:text-blue-600 transition-colors uppercase">
-                                {row.subject}
-                              </span>
-                            </div>
-                            <div className="flex flex-col gap-2">
-                              {material && material.chapter ? (
-                                <div className="p-3 bg-blue-50/50 rounded-2xl border border-blue-100/50 space-y-2 max-w-sm">
-                                  <div className="flex items-center gap-2">
-                                    <div className="px-2 py-0.5 rounded-md bg-blue-600 text-white text-[9px] font-black uppercase tracking-[0.2em]">
-                                      Materi Pokok
-                                    </div>
-                                    <span className="text-xs font-black text-slate-700 uppercase tracking-tight">{material.chapter}</span>
-                                  </div>
-                                  {material.sub_chapter && (
-                                    <div className="flex items-start gap-2 pl-2 border-l-2 border-blue-200 ml-1">
-                                      <span className="text-[11px] font-bold text-slate-500 leading-relaxed italic">
-                                        "{material.sub_chapter}"
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2 py-1 px-3 bg-slate-50 rounded-lg border border-dashed border-slate-200 w-fit">
-                                  <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                                  <span className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em] italic">Progres Materi Kosong</span>
-                                </div>
-                              )}
-                            </div>
+                          <div className="flex flex-col gap-2.5">
+                            <span className="font-black text-slate-900 text-lg tracking-tight group-hover:text-blue-600 transition-colors uppercase">
+                              {row.subject}
+                            </span>
+                            
+                            {material && (material.chapter || material.sub_chapter || info || jumlahMurid || tanggalPembelajaran) ? (
+                              <button 
+                                onClick={() => { setSelectedSchedule(row); setIsViewJournalOpen(true); }}
+                                className="flex items-center gap-2 py-1.5 px-3.5 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 rounded-xl border border-indigo-200/50 w-fit transition-all text-[10px] font-black uppercase tracking-[0.1em] cursor-pointer shadow-sm active:scale-95"
+                              >
+                                <BookOpen size={13} className="text-indigo-600 shrink-0" />
+                                <span>Lihat Jurnal</span>
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => {
+                                  if (canManage) {
+                                    setSelectedSchedule(row);
+                                    setIsMaterialDialogOpen(true);
+                                  }
+                                }}
+                                className={`flex items-center gap-2 py-1.5 px-3.5 bg-slate-50 hover:bg-slate-100 text-slate-400 rounded-xl border border-dashed border-slate-200 w-fit transition-all text-[10px] font-black uppercase tracking-[0.1em] ${canManage ? 'cursor-pointer active:scale-95' : 'opacity-60 cursor-not-allowed'}`}
+                                disabled={!canManage}
+                              >
+                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></div>
+                                <span>Jurnal Kosong</span>
+                              </button>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="border-r-2 border-slate-900">
@@ -795,7 +920,7 @@ export default function JadwalMengajar() {
                                   onClick={() => { setSelectedSchedule(row); setIsMaterialDialogOpen(true); }} 
                                   className="h-9 px-4 border-blue-200 hover:border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all w-full shadow-sm"
                                 >
-                                  <BookOpen size={14} className="mr-2" /> Input Materi
+                                  <BookOpen size={14} className="mr-2" /> Input Jurnal
                                 </Button>
                                 <Link to={`/nilai?classId=${row.class_id}&subject=${encodeURIComponent(row.subject)}`} className="w-full">
                                   <Button 
@@ -808,7 +933,7 @@ export default function JadwalMengajar() {
                                 </Link>
                               </div>
                             )}
-                            {canManage && (
+                            {isAdmin && (
                               <div className="flex items-center gap-1.5 w-full md:w-32 justify-end">
                                 <Button 
                                   variant="ghost" 
@@ -848,7 +973,7 @@ export default function JadwalMengajar() {
                           <p className="text-slate-900 font-bold">Jadwal Kosong</p>
                           <p className="text-sm font-medium mt-1">Tidak ada kegiatan mengajar yang terdaftar untuk hari {activeDay}.</p>
                         </div>
-                        {canManage && (
+                        {isAdmin && (
                           <Button variant="outline" className="mt-2 rounded-xl h-10 px-6 font-bold" onClick={() => setIsDialogOpen(true)}>
                             Atur Jadwal Baru
                           </Button>
@@ -907,10 +1032,141 @@ export default function JadwalMengajar() {
         </div>
       </div>
 
-      {/* Material Progress Dialog */}
+      {/* Jurnal Mengajar View Dialog */}
+      <Dialog open={isViewJournalOpen} onOpenChange={setIsViewJournalOpen}>
+        <DialogContent className="w-[90vw] max-w-[450px] sm:max-w-[450px] max-h-[90vh] flex flex-col p-0 border-none shadow-2xl rounded-[32px] overflow-hidden">
+          <div className="bg-slate-900 p-8 text-white relative shrink-0">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+            <DialogHeader className="relative z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                    <BookOpen size={20} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-xl font-black uppercase tracking-tight">Detail Jurnal Mengajar</DialogTitle>
+                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Minggu ke-{selectedWeek} • {selectedSchedule?.subject}</p>
+                  </div>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+
+          {selectedSchedule && (() => {
+            const material = getWeekMaterial(selectedSchedule.id);
+            let info = material?.info || "";
+            let jumlahMurid = material?.jumlah_murid !== undefined && material?.jumlah_murid !== null ? String(material.jumlah_murid) : "";
+            let tanggalPembelajaran = material?.tanggal_pembelajaran || "";
+
+            if (material?.notes) {
+              try {
+                const parsed = JSON.parse(material.notes);
+                if (parsed && typeof parsed === "object") {
+                  if (parsed.info !== undefined) info = parsed.info;
+                  if (parsed.jumlah_murid !== undefined && parsed.jumlah_murid !== null) jumlahMurid = String(parsed.jumlah_murid);
+                  if (parsed.tanggal_pembelajaran !== undefined) tanggalPembelajaran = parsed.tanggal_pembelajaran;
+                }
+              } catch (e) {}
+            }
+
+            const hasContent = material && (material.chapter || material.sub_chapter || info || jumlahMurid || tanggalPembelajaran);
+
+            return (
+              <div className="flex flex-col flex-1 overflow-hidden bg-white">
+                <div className="p-8 pb-6 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+                  {!hasContent ? (
+                    <div className="py-12 text-center text-slate-400 space-y-3">
+                      <BookOpen size={40} className="mx-auto text-slate-200" />
+                      <div>
+                        <p className="font-bold text-slate-800">Jurnal Belum Diisi</p>
+                        <p className="text-xs text-slate-400 mt-1">Belum ada catatan jurnal mengajar untuk sesi ini.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      <div className="grid grid-cols-2 gap-4 border-b border-slate-100 pb-4">
+                        <div>
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Guru Pengampu</span>
+                          <span className="text-xs font-black text-slate-700 uppercase">{selectedSchedule.guru?.full_name || "Unknown"}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Kelas</span>
+                          <span className="text-xs font-black text-slate-700 uppercase">{selectedSchedule.class?.name || "Unknown"}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 border-b border-slate-100 pb-4">
+                        <div>
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Hari & Waktu</span>
+                          <span className="text-xs font-bold text-slate-600">{selectedSchedule.day}, {selectedSchedule.start_time?.substring(0, 5)} - {selectedSchedule.end_time?.substring(0, 5)}</span>
+                        </div>
+                        {tanggalPembelajaran && (
+                          <div>
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Tanggal Pembelajaran</span>
+                            <span className="text-xs font-bold text-slate-600">
+                              {new Date(tanggalPembelajaran).toLocaleDateString("id-ID", { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {material.chapter && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Materi Pokok (Bab)</span>
+                          <p className="text-sm font-black text-slate-800 uppercase tracking-tight">{material.chapter}</p>
+                        </div>
+                      )}
+
+                      {material.sub_chapter && (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Sub Bab / Topik Detail</span>
+                          <p className="text-sm font-bold text-slate-700">{material.sub_chapter}</p>
+                        </div>
+                      )}
+
+                      {info && (
+                        <div className="bg-blue-50/30 p-4 rounded-2xl border border-blue-100/30 space-y-1">
+                          <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest block">Informasi Jurnal</span>
+                          <p className="text-xs text-slate-600 font-medium leading-relaxed italic">"{info}"</p>
+                        </div>
+                      )}
+
+                      {jumlahMurid && (
+                        <div className="flex items-center gap-2 text-xs font-black text-slate-700 bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100/30 w-fit">
+                          <Users size={14} className="text-indigo-600" />
+                          <span>Kehadiran: <span className="text-indigo-600 font-black">{jumlahMurid}</span> Murid</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter className="p-6 gap-3 bg-slate-50 border-t border-slate-100 shrink-0">
+                  <Button type="button" variant="ghost" onClick={() => setIsViewJournalOpen(false)} className="h-12 rounded-xl font-bold text-slate-400">
+                    Tutup
+                  </Button>
+                  {canManage && (
+                    <Button 
+                      onClick={() => {
+                        setIsViewJournalOpen(false);
+                        setIsMaterialDialogOpen(true);
+                      }}
+                      className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-100 transition-all flex-1 md:flex-none"
+                    >
+                      Edit Jurnal
+                    </Button>
+                  )}
+                </DialogFooter>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Jurnal Mengajar Dialog */}
       <Dialog open={isMaterialDialogOpen} onOpenChange={setIsMaterialDialogOpen}>
-        <DialogContent className="sm:max-w-[480px] p-0 border-none shadow-2xl rounded-[32px] overflow-hidden">
-          <div className="bg-[#4f46e5] p-8 text-white relative">
+        <DialogContent className="w-[90vw] max-w-[450px] sm:max-w-[450px] max-h-[90vh] flex flex-col p-0 border-none shadow-2xl rounded-[32px] overflow-hidden">
+          <div className="bg-[#4f46e5] p-8 text-white relative shrink-0">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
             <DialogHeader className="relative z-10">
               <div className="flex items-center gap-3 mb-2">
@@ -918,22 +1174,23 @@ export default function JadwalMengajar() {
                   <BookOpen size={20} />
                 </div>
                 <div>
-                  <DialogTitle className="text-xl font-black uppercase tracking-tight">Progres Materi</DialogTitle>
+                  <DialogTitle className="text-xl font-black uppercase tracking-tight">Jurnal Mengajar</DialogTitle>
                   <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest">Minggu ke-{selectedWeek} • {selectedSchedule?.subject}</p>
                 </div>
               </div>
             </DialogHeader>
           </div>
           
-          <form onSubmit={handleSaveMaterial} className="p-8 space-y-6 bg-white">
-            <div className="space-y-4">
+          <form onSubmit={handleSaveMaterial} className="flex flex-col flex-1 overflow-hidden bg-white">
+            <div className="p-8 pb-4 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Bab / Materi Pokok</Label>
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Materi Pembelajaran (Bab)</Label>
                 <Input 
                   placeholder="Contoh: Bab 1 Operasi Hitung" 
                   value={materialData.chapter}
                   onChange={(e) => setMaterialData({ ...materialData, chapter: e.target.value })}
                   className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus-visible:ring-indigo-500 px-4"
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -943,30 +1200,54 @@ export default function JadwalMengajar() {
                   value={materialData.sub_chapter}
                   onChange={(e) => setMaterialData({ ...materialData, sub_chapter: e.target.value })}
                   className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus-visible:ring-indigo-500 px-4"
+                  required
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Catatan Tambahan</Label>
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Informasi Jurnal</Label>
                 <Input 
-                  placeholder="Opsional: Referensi halaman atau catatan" 
-                  value={materialData.notes}
-                  onChange={(e) => setMaterialData({ ...materialData, notes: e.target.value })}
+                  placeholder="Contoh: Pembelajaran berjalan lancar, siswa aktif" 
+                  value={materialData.info}
+                  onChange={(e) => setMaterialData({ ...materialData, info: e.target.value })}
                   className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus-visible:ring-indigo-500 px-4"
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Jumlah Murid Hadir</Label>
+                  <Input 
+                    type="number"
+                    min="0"
+                    placeholder="Contoh: 28" 
+                    value={materialData.jumlah_murid}
+                    onChange={(e) => setMaterialData({ ...materialData, jumlah_murid: e.target.value })}
+                    className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus-visible:ring-indigo-500 px-4"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Pembelajaran</Label>
+                  <Input 
+                    type="date"
+                    value={materialData.tanggal_pembelajaran}
+                    onChange={(e) => setMaterialData({ ...materialData, tanggal_pembelajaran: e.target.value })}
+                    className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus-visible:ring-indigo-500 px-4 cursor-pointer"
+                    required
+                  />
+                </div>
+              </div>
             </div>
 
-            <DialogFooter className="gap-3 pt-4">
+            <DialogFooter className="p-6 gap-3 bg-slate-50 border-t border-slate-100 shrink-0">
               <Button type="button" variant="ghost" onClick={() => setIsMaterialDialogOpen(false)} className="h-12 rounded-xl font-bold text-slate-400">
                 Batal
               </Button>
-              <Button type="submit" className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-lg shadow-indigo-100 transition-all flex-1 md:flex-none" disabled={loading}>
-                {loading ? (
+              <Button type="submit" className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-lg shadow-indigo-100 transition-all flex-1 md:flex-none" disabled={saving}>
+                {saving ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                     <span>Menyimpan...</span>
                   </div>
-                ) : "Simpan Progres"}
+                ) : "Simpan Jurnal"}
               </Button>
             </DialogFooter>
           </form>
@@ -1043,13 +1324,19 @@ export default function JadwalMengajar() {
 
             <div className="space-y-2">
               <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nama Mata Pelajaran</Label>
-              <Input 
-                placeholder="Contoh: Ilmu Pengetahuan Alam" 
-                value={formData.subject}
-                onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                required
-                className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500"
-              />
+              <Select 
+                value={formData.subject} 
+                onValueChange={(val) => setFormData({ ...formData, subject: val })}
+              >
+                <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus:ring-blue-500">
+                  <SelectValue placeholder="Pilih Mata Pelajaran" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-slate-100 shadow-xl max-h-[250px]">
+                  {subjectList.map(sub => (
+                    <SelectItem key={sub} value={sub} className="font-bold">{sub}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
@@ -1097,8 +1384,8 @@ export default function JadwalMengajar() {
               <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-12 rounded-xl font-bold text-slate-400">
                 Tutup
               </Button>
-              <Button type="submit" className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-100 transition-all flex-1" disabled={loading}>
-                {loading ? "Proses..." : (selectedSchedule ? "Simpan Perubahan" : "Konfirmasi Jadwal")}
+              <Button type="submit" className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-100 transition-all flex-1" disabled={saving}>
+                {saving ? "Proses..." : (selectedSchedule ? "Simpan Perubahan" : "Konfirmasi Jadwal")}
               </Button>
             </DialogFooter>
           </form>

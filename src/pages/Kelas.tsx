@@ -1,3 +1,9 @@
+/**
+ * Kelas.tsx
+ * Halaman manajemen rombongan belajar (kelas) dan data murid di dalamnya.
+ * Mendukung pembatasan akses edit kelas untuk Guru, pengelolaan biodata siswa
+ * (tambah/edit/hapus siswa di kelas), serta ekspor laporan kelas/siswa ke format PDF dan Excel.
+ */
 import React, { useState, useEffect } from "react";
 import { School, User, Hash, MoreHorizontal, Plus, Edit2, Trash2, Users, MapPin, Search, Download, FileSpreadsheet, FileText, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,12 +40,18 @@ import XLSX from "xlsx-js-style";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
-export default function Kelas() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isTeacher, setIsTeacher] = useState(false);
-  const [isKepalaSekolah, setIsKepalaSekolah] = useState(false);
+interface PageProps {
+  user?: any;
+  role?: string;
+}
+
+export default function Kelas({ user: propUser, role: propRole }: PageProps = {}) {
+  const [currentUser, setCurrentUser] = useState<any>(propUser || null);
+  const [isAdmin, setIsAdmin] = useState(propRole ? (propRole === "admin" || propUser?.email?.includes("admin@sekolah")) : false);
+  const [isTeacher, setIsTeacher] = useState(propRole ? (propRole === "guru") : false);
+  const [isKepalaSekolah, setIsKepalaSekolah] = useState(propRole ? (propRole === "kepala_sekolah") : false);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [classes, setClasses] = useState<any[]>([]);
   const [gurus, setGurus] = useState<any[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -79,7 +91,7 @@ export default function Kelas() {
   useEffect(() => {
     checkUserRole();
     fetchGurus();
-    fetchClasses();
+    fetchClasses(true);
   }, []);
 
   useEffect(() => {
@@ -99,19 +111,45 @@ export default function Kelas() {
   }, [selectedKelas, isDialogOpen]);
 
   const checkUserRole = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    let user = propUser;
+    if (!user) {
+      const { data } = await supabase.auth.getUser();
+      user = data?.user;
+    }
     if (user) {
       setCurrentUser(user);
-      // Check database first for most accurate role
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
       
-      const role = profile?.role || user.user_metadata?.role || "guru";
+      let role = propRole;
+      if (!role) {
+        try {
+          const { data: profilesById } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id);
+
+          let profilesByEmail: any[] = [];
+          if (user.email) {
+            const { data } = await supabase
+              .from('profiles')
+              .select('role')
+              .ilike('email', user.email.trim());
+            if (data) {
+              profilesByEmail = data;
+            }
+          }
+
+          const uniqueRoles = Array.from(new Set([...(profilesById || []), ...profilesByEmail].map(p => p.role)));
+          if (uniqueRoles.length > 0) {
+            role = uniqueRoles.find(r => r === "admin" || r === "kepala_sekolah") || uniqueRoles[0];
+          } else {
+            role = user.user_metadata?.role || "guru";
+          }
+        } catch (err) {
+          console.warn("Failed fetching profiles for checkUserRole in Kelas.tsx:", err);
+        }
+      }
+      
       const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
-      
       const adminStatus = role === "admin" || isSpecialAdmin;
       setIsAdmin(adminStatus);
       setIsTeacher(role === "guru");
@@ -126,33 +164,111 @@ export default function Kelas() {
     setGurus(data || []);
   };
 
-  const fetchClasses = async () => {
-    setLoading(true);
+  const fetchClasses = async (isInitial = false) => {
+    if (isInitial || classes.length === 0) {
+      setLoading(true);
+    }
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      let user = propUser;
+      if (!user) {
+        const { data } = await supabase.auth.getUser();
+        user = data?.user;
+      }
       if (!user) return;
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
+      let role = propRole || "guru";
+      let matchedUserProfileIds: string[] = [user.id];
+
+      if (!propRole) {
+        try {
+          const { data: profilesById } = await supabase
+            .from('profiles')
+            .select('id, role')
+            .eq('id', user.id);
+
+          let profilesByEmail: any[] = [];
+          if (user.email) {
+            const { data } = await supabase
+              .from('profiles')
+              .select('id, role')
+              .ilike('email', user.email.trim());
+            if (data) {
+              profilesByEmail = data;
+            }
+          }
+
+          // Combine unique profiles
+          const uniqueProfilesMap = new Map<string, any>();
+          [...(profilesById || []), ...profilesByEmail].forEach(p => {
+            uniqueProfilesMap.set(p.id, p);
+          });
+          const matchedProfiles = Array.from(uniqueProfilesMap.values());
+          
+          if (matchedProfiles.length > 0) {
+            matchedUserProfileIds = matchedProfiles.map(p => p.id);
+            const primaryProfile = matchedProfiles.find(p => p.id === user.id) || matchedProfiles[0];
+            role = primaryProfile?.role || user.user_metadata?.role || "guru";
+          }
+        } catch (err) {
+          console.warn("Failed resolving profiles in fetchClasses:", err);
+        }
+      }
       
-      const role = profile?.role || user.user_metadata?.role || "guru";
       const isSpecialAdmin = user.email === "admin@sekolah.is" || user.email === "admin@sekolah.id";
       const isAdminRole = role === "admin" || isSpecialAdmin;
 
-      let query = supabase
-        .from('classes')
-        .select('*, wali:profiles(full_name), student_count:students(count)');
-      
+      let fetchedClasses: any[] = [];
       if (!isAdminRole) {
-        query = query.eq('wali_kelas_id', user.id);
+        // Query classes where the user has a teaching schedule
+        const { data: teachingSchedules } = await supabase
+          .from('teaching_schedules')
+          .select('class_id')
+          .in('guru_id', matchedUserProfileIds);
+        
+        const scheduleClassIds = Array.from(
+          new Set(
+            (teachingSchedules || [])
+              .map(s => s.class_id)
+              .filter((id): id is string => !!id)
+          )
+        );
+
+        // Fetch classes where user is Wali Kelas
+        const { data: wkClasses, error: wkError } = await supabase
+          .from('classes')
+          .select('*, wali:profiles(full_name), student_count:students(count)')
+          .in('wali_kelas_id', matchedUserProfileIds);
+        
+        if (wkError) throw wkError;
+
+        let scClasses: any[] = [];
+        if (scheduleClassIds.length > 0) {
+          const { data: tsClasses, error: tsError } = await supabase
+            .from('classes')
+            .select('*, wali:profiles(full_name), student_count:students(count)')
+            .in('id', scheduleClassIds);
+          
+          if (tsError) throw tsError;
+          scClasses = tsClasses || [];
+        }
+
+        // Combine unique classes
+        const uniqueClassesMap = new Map<string, any>();
+        [...(wkClasses || []), ...scClasses].forEach(cls => {
+          uniqueClassesMap.set(cls.id, cls);
+        });
+        fetchedClasses = Array.from(uniqueClassesMap.values());
+      } else {
+        const { data, error } = await supabase
+          .from('classes')
+          .select('*, wali:profiles(full_name), student_count:students(count)')
+          .order('name');
+        
+        if (error) throw error;
+        fetchedClasses = data || [];
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      setClasses(data || []);
+      setClasses(fetchedClasses);
     } catch (error: any) {
       toast.error("Gagal memuat data kelas: " + error.message);
     } finally {
@@ -246,7 +362,12 @@ export default function Kelas() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    const canManageClass = isAdmin || isKepalaSekolah;
+    if (!canManageClass) {
+      toast.error("Hanya admin atau kepala sekolah yang dapat mengelola data kelas");
+      return;
+    }
+    setSaving(true);
     try {
       const payload = { 
         ...formData,
@@ -279,7 +400,7 @@ export default function Kelas() {
     } catch (error: any) {
       toast.error("Gagal menyimpan: " + error.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
@@ -717,7 +838,7 @@ export default function Kelas() {
                     <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:bg-blue-50 group-hover:border-blue-100 transition-all duration-300">
                       <School size={28} />
                     </div>
-                    {(isAdmin || isTeacher || isKepalaSekolah) && (
+                    {(isAdmin || isKepalaSekolah) && (
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-x-2 group-hover:translate-x-0">
                         <button 
                           onClick={() => { setSelectedKelas(cls); setIsDialogOpen(true); }} 
@@ -877,8 +998,8 @@ export default function Kelas() {
               <Button type="button" variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-10 rounded-xl font-bold text-slate-400 text-xs">
                 Batal
               </Button>
-              <Button type="submit" className="h-10 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg flex-1 text-xs uppercase" disabled={loading}>
-                {loading ? "..." : (selectedKelas ? "Simpan" : "Tambah")}
+              <Button type="submit" className="h-10 px-8 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg flex-1 text-xs uppercase" disabled={saving}>
+                {saving ? "..." : (selectedKelas ? "Simpan" : "Tambah")}
               </Button>
             </DialogFooter>
           </form>

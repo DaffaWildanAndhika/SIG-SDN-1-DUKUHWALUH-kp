@@ -1,5 +1,741 @@
 [
   {
+    "id": "2d27noupq_1781003106642",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Menginput Nilai Harian",
+    "details": "Menginput/memperbarui nilai harian mata pelajaran Pendidikan Pancasila - Bab/Materi: 6 untuk seluruh siswa di kelas 5A Test Semester 2",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T11:05:06.642Z"
+  },
+  {
+    "id": "6vis24dbc_1781003063045",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Menginput Nilai Harian",
+    "details": "Menginput/memperbarui nilai harian mata pelajaran Bahasa Indonesia - Bab/Materi: 1 untuk seluruh siswa di kelas 5A Test Semester 1",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T11:04:23.045Z"
+  },
+  {
+    "id": "qcw79lwkd_1781002817928",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Perbarui Profil Pribadi",
+    "details": "Memperbarui data profil pribadi (Daffa Wildan Andhika S.Pd)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T11:00:17.928Z"
+  },
+  {
+    "id": "r9t3jo61w_1780995291090",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Mengisi Kehadiran Siswa",
+    "details": "Melakukan absensi kelas 5A Test untuk tanggal 9 Juni 2026. Status: 6 murid terhitung.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T08:54:51.090Z"
+  },
+  {
+    "id": "2uuqkt7dt_1780995271259",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Menginput Nilai Harian",
+    "details": "Menginput/memperbarui nilai harian mata pelajaran Pendidikan Pancasila - Bab/Materi: 6 untuk seluruh siswa di kelas 5A Test Semester 2",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T08:54:31.259Z"
+  },
+  {
+    "id": "v97ui861j_1780995222674",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Menginput Nilai Harian",
+    "details": "Menginput/memperbarui nilai harian mata pelajaran Matematika - Bab/Materi: 1 untuk seluruh siswa di kelas 5A Test Semester 1",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T08:53:42.674Z"
+  },
+  {
+    "id": "vo3t3v74b_1780995195479",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Menginput Nilai Harian",
+    "details": "Menginput/memperbarui nilai harian mata pelajaran Bahasa Indonesia - Bab/Materi: 6 untuk seluruh siswa di kelas 5A Test Semester 2",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T08:53:15.479Z"
+  },
+  {
+    "id": "j572c3f45_1780995135772",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Menambahkan Data Siswa",
+    "details": "Menambahkan siswa baru Alif Fikri Zain (NIS: 2305) ke kelas 5A Test",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T08:52:15.772Z"
+  },
+  {
+    "id": "i1ww5e6at_1780995068385",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Mengisi Jurnal Mengajar",
+    "details": "Mengisi jurnal mengajar Minggu 1 untuk pelajaran Pendidikan Pancasila (Bab: Bab 1 Pancasila, Sub-Bab: Memahami Dasar Pancasila)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T08:51:08.385Z"
+  },
+  {
+    "id": "3lotrcbi2_1780988431023",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Reset Password Guru",
+    "details": "Mereset password sementara untuk guru: Daffa Wildan Andhika S.Pd (daffa1234@gmail.com)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T07:00:31.023Z"
+  },
+  {
+    "id": "wagu8xi8q_1780988302299",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Kelas Baru",
+    "details": "Menambahkan kelas baru kelas (Tahun Ajaran: 2025/2026)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:58:22.299Z"
+  },
+  {
+    "id": "1v67o2y4q_1780988284519",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengisi Kehadiran Siswa",
+    "details": "Melakukan absensi kelas 1A untuk tanggal 9 Juni 2026. Status: 1 murid terhitung.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:58:04.519Z"
+  },
+  {
+    "id": "rq7n0i76w_1780987959417",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengisi Kehadiran Siswa",
+    "details": "Melakukan absensi kelas 1A untuk tanggal 9 Juni 2026. Status: 1 murid terhitung.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:52:39.417Z"
+  },
+  {
+    "id": "oql8l01y4_1780987880261",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menginput Nilai Harian",
+    "details": "Menginput/memperbarui nilai harian mata pelajaran Pendidikan Pancasila - Bab/Materi: 1 untuk seluruh siswa di kelas 1A Semester 1",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:51:20.261Z"
+  },
+  {
+    "id": "2v0n4ygqx_1780987865924",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengisi Kehadiran Siswa",
+    "details": "Melakukan absensi kelas 1A untuk tanggal 9 Juni 2026. Status: 1 murid terhitung.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:51:05.924Z"
+  },
+  {
+    "id": "bkvoe9dne_1780987690839",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengisi Kehadiran Siswa",
+    "details": "Melakukan absensi kelas 1A untuk tanggal 9 Juni 2026. Status: 1 murid terhitung.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:48:10.839Z"
+  },
+  {
+    "id": "id4ec02n6_1780987318017",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menginput Nilai Harian",
+    "details": "Menginput/memperbarui nilai harian mata pelajaran Pendidikan Pancasila - Bab/Materi: 1 untuk seluruh siswa di kelas 5A Test Semester 1",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:41:58.017Z"
+  },
+  {
+    "id": "yrtmny6s5_1780987295240",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengisi Kehadiran Siswa",
+    "details": "Melakukan absensi kelas 1A untuk tanggal 9 Juni 2026. Status: 1 murid terhitung.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:41:35.240Z"
+  },
+  {
+    "id": "prdh9qitt_1780987281225",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Perbarui Profil Sekolah",
+    "details": "Memperbarui data profil sekolah (SDN 1 DUKUHWALUH)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:41:21.225Z"
+  },
+  {
+    "id": "g7k6ehln8_1780987232968",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Perbarui Profil Sekolah",
+    "details": "Memperbarui data profil sekolah (SDN 1 DUKUHWALUH)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:40:32.968Z"
+  },
+  {
+    "id": "9qpkj0pj4_1780986655926",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Pemulihan Database",
+    "details": "Memulihkan basis data menggunakan berkas cadangan: backup-2026-06-09.json",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:30:55.926Z"
+  },
+  {
+    "id": "sq597i5d0_1780986627985",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Ekspor Database",
+    "details": "Melakukan backup basis data secara penuh.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T06:30:27.985Z"
+  },
+  {
+    "id": "wcar7300z_1780984185860",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengubah Jadwal Mengajar",
+    "details": "Mengubah jadwal mengajar Daffa Wildan Andhika S.Pd di 5A Test pelajaran IPA hari Senin pukul 07:30-08:30",
+    "prev_data": {
+      "id": "ce3871d9-803b-4144-966b-077b555a6f65",
+      "guru_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+      "class_id": "a2e7a2eb-8ad8-49eb-932c-0cda1275605e",
+      "subject": "Ilmu Pengetahuan Alam",
+      "day": "Senin",
+      "start_time": "07:30:00",
+      "end_time": "08:30:00",
+      "created_at": "2026-06-07T14:38:21.070755+00:00",
+      "chapter": null,
+      "sub_chapter": null,
+      "week_number": 1,
+      "class": {
+        "name": "5A Test",
+        "academic_year": "2025/2026"
+      },
+      "guru": {
+        "full_name": "Daffa Wildan Andhika S.Pd"
+      }
+    },
+    "new_data": {
+      "guru_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+      "class_id": "a2e7a2eb-8ad8-49eb-932c-0cda1275605e",
+      "subject": "IPA",
+      "day": "Senin",
+      "start_time": "07:30",
+      "end_time": "08:30"
+    },
+    "created_at": "2026-06-09T05:49:45.860Z"
+  },
+  {
+    "id": "zwt23xat4_1780984166690",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Mata Pelajaran",
+    "details": "Menambahkan mata pelajaran baru: \"Agama\"",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T05:49:26.690Z"
+  },
+  {
+    "id": "kdd2n0kl2_1780984158561",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Mata Pelajaran",
+    "details": "Menambahkan mata pelajaran baru: \"Bahasa Inggris\"",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T05:49:18.561Z"
+  },
+  {
+    "id": "k35zrg0l8_1780984148459",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Mata Pelajaran",
+    "details": "Menambahkan mata pelajaran baru: \"PJOK\"",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T05:49:08.459Z"
+  },
+  {
+    "id": "bd6buqe01_1780984141322",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Mata Pelajaran",
+    "details": "Menambahkan mata pelajaran baru: \"Seni Budaya\"",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T05:49:01.322Z"
+  },
+  {
+    "id": "o8wh8do87_1780984129087",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Mata Pelajaran",
+    "details": "Menambahkan mata pelajaran baru: \"IPA\"",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T05:48:49.087Z"
+  },
+  {
+    "id": "9fa856xon_1780984120453",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Mata Pelajaran",
+    "details": "Menambahkan mata pelajaran baru: \"Bahasa Indonesia\"",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T05:48:40.453Z"
+  },
+  {
+    "id": "i1egmklq6_1780984106809",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Mata Pelajaran",
+    "details": "Menambahkan mata pelajaran baru: \"Pendidikan Pancasila\"",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T05:48:26.809Z"
+  },
+  {
+    "id": "r3msbxrtt_1780984071623",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menambahkan Mata Pelajaran",
+    "details": "Menambahkan mata pelajaran baru: \"Matematika\"",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T05:47:51.623Z"
+  },
+  {
+    "id": "mx7h56tr0_1780983031214",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mencetak Raport",
+    "details": "Mencetak raport Semester 1 untuk seluruh siswa kelas 5A Test tahun ajaran 2025/2026",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T05:30:31.214Z"
+  },
+  {
+    "id": "gyhkz8kzl_1780983017312",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mencetak Raport",
+    "details": "Mencetak raport Semester 1 untuk seluruh siswa kelas 5A Test tahun ajaran 2025/2026",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T05:30:17.312Z"
+  },
+  {
+    "id": "obizfh94o_1780914424877",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengisi Kehadiran Siswa",
+    "details": "Melakukan absensi kelas 1A untuk tanggal 8 Juni 2026. Status: 1 murid terhitung.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-08T10:27:04.877Z"
+  },
+  {
+    "id": "qrtxm6oaf_1780914177326",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mencetak Raport",
+    "details": "Mencetak raport untuk seluruh siswa kelas 5A Test tahun ajaran 2025/2026",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-08T10:22:57.326Z"
+  },
+  {
+    "id": "7xm9muvgc_1780902873733",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengisi Jurnal Mengajar",
+    "details": "Mengisi jurnal mengajar Minggu 1 untuk pelajaran Ilmu Pengetahuan Alam (Bab: Bab 1 , Sub-Bab: sub bab 1)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-08T07:14:33.733Z"
+  },
+  {
+    "id": "gao49p9hn_1780902036649",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Perbarui Profil Pribadi",
+    "details": "Memperbarui data profil pribadi (Daffa Wildan Andhika S.Pd)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-08T07:00:36.650Z"
+  },
+  {
+    "id": "rjjmzseal_1780901524551",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Mengisi Kehadiran Siswa",
+    "details": "Melakukan absensi kelas 5A Test untuk tanggal 11 Juni 2026. Status: 5 murid terhitung.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-08T06:52:04.551Z"
+  },
+  {
+    "id": "5cjjycr2i_1780900915283",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengisi Kehadiran Siswa",
+    "details": "Melakukan absensi kelas 1A untuk tanggal 8 Juni 2026. Status: 1 murid terhitung.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-08T06:41:55.283Z"
+  },
+  {
+    "id": "zbyk47ane_1780900851115",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengisi Kehadiran Siswa",
+    "details": "Melakukan absensi kelas 1A untuk tanggal 8 Juni 2026. Status: 1 murid terhitung.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-08T06:40:51.115Z"
+  },
+  {
+    "id": "cbi552srg_1780900843531",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengisi Kehadiran Siswa",
+    "details": "Melakukan absensi kelas 1B untuk tanggal 8 Juni 2026. Status: 3 murid terhitung.",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-08T06:40:43.531Z"
+  },
+  {
+    "id": "zjhikge8r_1780873203367",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menghapus Data Guru",
+    "details": "Menghapus data akun guru Anjelina Ratna S.Pd",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T23:00:03.367Z"
+  },
+  {
+    "id": "mzh1x2tp8_1780873136088",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Reset Password Guru",
+    "details": "Mereset password sementara untuk guru: Hanum S.Pd (Hanum12@gmail.com)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T22:58:56.088Z"
+  },
+  {
+    "id": "ucxz68xvq_1780870080427",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menghapus Data Guru",
+    "details": "Menghapus data akun guru Rochmatul Khasanah S.Pd",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T22:08:00.427Z"
+  },
+  {
+    "id": "l3mebhbrb_1780870074320",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menghapus Data Guru",
+    "details": "Menghapus data akun guru Risyati",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T22:07:54.320Z"
+  },
+  {
+    "id": "omlfxkvpm_1780870066430",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menghapus Data Guru",
+    "details": "Menghapus data akun guru M. Fuad Aminudin, S.Pd.I",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T22:07:46.430Z"
+  },
+  {
+    "id": "xvjoyf5b3_1780870051492",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menghapus Data Guru",
+    "details": "Menghapus data akun guru Sapto Ari Wijayanto S.Pd",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T22:07:31.492Z"
+  },
+  {
+    "id": "iqyi5cf58_1780870041550",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menghapus Data Guru",
+    "details": "Menghapus data akun guru Sulistyowati S.Pd",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T22:07:21.550Z"
+  },
+  {
+    "id": "z5joi2gii_1780870026186",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menghapus Data Guru",
+    "details": "Menghapus data akun guru Umi Indriyanti S.Pd,M.Pd",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T22:07:06.186Z"
+  },
+  {
+    "id": "siz3mybvj_1780870017582",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menghapus Data Guru",
+    "details": "Menghapus data akun guru Nur Septo Anjas Pamukti",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T22:06:57.582Z"
+  },
+  {
+    "id": "5llc91gmq_1780869733282",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengubah Data Kelas",
+    "details": "Mengubah informasi kelas 1A (Tahun Ajaran: 2025/2026)",
+    "prev_data": {
+      "id": "d70cdf19-4414-45a3-b54f-ec3dfb106500",
+      "name": "1A",
+      "wali_kelas_id": "0f355402-57c8-43f7-989f-147934fe4ae8",
+      "academic_year": "2025/2026",
+      "created_at": "2026-05-17T14:33:19.078306+00:00",
+      "wali": {
+        "full_name": "Rochmatul Khasanah S.Pd"
+      },
+      "student_count": [
+        {
+          "count": 1
+        }
+      ]
+    },
+    "new_data": {
+      "name": "1A",
+      "wali_kelas_id": "57ce9786-62fb-4aba-96ce-4635707f9140",
+      "academic_year": "2025/2026"
+    },
+    "created_at": "2026-06-07T22:02:13.282Z"
+  },
+  {
+    "id": "j56bjeogf_1780869720364",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengubah Data Kelas",
+    "details": "Mengubah informasi kelas 1B (Tahun Ajaran: 2025/2026)",
+    "prev_data": {
+      "id": "6e0d6b83-8e41-4dcf-bc8f-3200e6121547",
+      "name": "1B",
+      "wali_kelas_id": "57ce9786-62fb-4aba-96ce-4635707f9140",
+      "academic_year": "2025/2026",
+      "created_at": "2026-05-17T14:33:25.509961+00:00",
+      "wali": {
+        "full_name": "Anjelina Ratna Sari S.Pd"
+      },
+      "student_count": [
+        {
+          "count": 3
+        }
+      ]
+    },
+    "new_data": {
+      "name": "1B",
+      "wali_kelas_id": "0f355402-57c8-43f7-989f-147934fe4ae8",
+      "academic_year": "2025/2026"
+    },
+    "created_at": "2026-06-07T22:02:00.364Z"
+  },
+  {
+    "id": "aunckfd9b_1780869675281",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengubah Data Kelas",
+    "details": "Mengubah informasi kelas 1B (Tahun Ajaran: 2025/2026)",
+    "prev_data": {
+      "id": "6e0d6b83-8e41-4dcf-bc8f-3200e6121547",
+      "name": "1B",
+      "wali_kelas_id": "57ce9786-62fb-4aba-96ce-4635707f9140",
+      "academic_year": "2025/2026",
+      "created_at": "2026-05-17T14:33:25.509961+00:00",
+      "wali": {
+        "full_name": "Anjelina Ratna Sari S.Pd"
+      },
+      "student_count": [
+        {
+          "count": 3
+        }
+      ]
+    },
+    "new_data": {
+      "name": "1B",
+      "wali_kelas_id": "57ce9786-62fb-4aba-96ce-4635707f9140",
+      "academic_year": "2025/2026"
+    },
+    "created_at": "2026-06-07T22:01:15.281Z"
+  },
+  {
+    "id": "0zjz2kei0_1780869625457",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengubah Data Kelas",
+    "details": "Mengubah informasi kelas 4B (Tahun Ajaran: 2025/2026)",
+    "prev_data": {
+      "id": "8ae85598-2536-437c-887e-d311b5357a2b",
+      "name": "4B",
+      "wali_kelas_id": null,
+      "academic_year": "2025/2026",
+      "created_at": "2026-05-17T14:34:01.322769+00:00",
+      "wali": null,
+      "student_count": [
+        {
+          "count": 0
+        }
+      ]
+    },
+    "new_data": {
+      "name": "4B",
+      "wali_kelas_id": "104f5e77-b8ea-4d01-be25-c968f00891c7",
+      "academic_year": "2025/2026"
+    },
+    "created_at": "2026-06-07T22:00:25.457Z"
+  },
+  {
+    "id": "yahqii5b0_1780869607957",
+    "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mendaftarkan Guru Baru",
+    "details": "Mendaftarkan guru baru Hanum S.Pd (Email: Hanum12@gmail.com, Mapel: -)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-07T22:00:07.957Z"
+  },
+  {
+    "id": "q6icy5j41_1780845453250",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Mengubah Data Guru",
+    "details": "Mengubah informasi data akun guru Daffa Wildan Andhika S.Pd (NIP: 2303040176)",
+    "prev_data": {
+      "id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+      "nip": null,
+      "full_name": "Daffa Wildan Andhika S.Pd",
+      "role": "guru",
+      "avatar_url": "daffa1234",
+      "gender": "Laki-laki",
+      "subject": "",
+      "phone": null,
+      "address": null,
+      "is_active": true,
+      "created_at": "2026-06-07T14:06:45.440399+00:00",
+      "updated_at": "2026-06-07T14:06:45.440399+00:00",
+      "email": "daffa1234@gmail.com"
+    },
+    "new_data": {
+      "nip": "2303040176",
+      "full_name": "Daffa Wildan Andhika S.Pd",
+      "gender": "Laki-laki",
+      "subject": "Kelas 5A test",
+      "phone": "085725255171",
+      "is_active": true,
+      "address": "jl danlaya buara ",
+      "email": "daffa1234@gmail.com",
+      "password": ""
+    },
+    "created_at": "2026-06-07T15:17:33.250Z"
+  },
+  {
     "id": "vsb53hwa8_1780843740427",
     "user_id": "4131f338-4b05-47bb-b9a7-c4027b6666fb",
     "user_fullname": "Administrator",

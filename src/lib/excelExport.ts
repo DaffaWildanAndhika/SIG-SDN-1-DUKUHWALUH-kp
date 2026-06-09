@@ -1,3 +1,9 @@
+/**
+ * excelExport.ts
+ * Layanan utilitas untuk mengekspor data tabel (siswa, kelas, guru, jadwal, presensi, nilai)
+ * ke dalam format Excel (.xlsx) dengan menerapkan kustomisasi gaya (styling) tabel
+ * menggunakan library xlsx-js-style.
+ */
 import * as XLSX from 'xlsx';
 import 'xlsx-js-style';
 

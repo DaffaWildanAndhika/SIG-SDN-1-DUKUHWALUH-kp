@@ -1,3 +1,9 @@
+/**
+ * Login.tsx
+ * Halaman otentikasi login pengguna. Mendukung seleksi peran (Admin vs Guru),
+ * verifikasi data menggunakan Supabase Auth atau fallback API Server / RLS bypass,
+ * serta menampilkan pintasan kontak bantuan sekolah.
+ */
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Key, Mail, School, Shield, GraduationCap, User, Eye, EyeOff, Terminal, Copy, Check, AlertCircle, HelpCircle, Phone, Info } from "lucide-react";

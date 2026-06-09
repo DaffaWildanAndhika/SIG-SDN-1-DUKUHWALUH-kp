@@ -1,3 +1,9 @@
+/**
+ * ActivityLogs.tsx
+ * Halaman untuk memantau catatan aktivitas (log audit) sistem. Admin dapat melihat,
+ * menyaring berdasarkan pencarian teks, peran pengguna, kategori tindakan,
+ * serta mengekspor riwayat log audit ke format spreadsheet.
+ */
 import React, { useState, useEffect } from "react";
 import { 
   History, 

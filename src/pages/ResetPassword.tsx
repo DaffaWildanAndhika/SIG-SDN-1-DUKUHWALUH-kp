@@ -1,16 +1,12 @@
-/**
- * App.tsx
- * Berkas utama untuk inisialisasi aplikasi React, konfigurasi Router (routing),
- * manajemen state otentikasi global, rendering tata letak (layout) dashboard,
- * menu navigasi sidebar, dan menu ubah kata sandi shortcut untuk seluruh peran pengguna.
- */
 import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
 import { 
   Users, 
+  Calendar, 
   LayoutDashboard, 
   BookOpen, 
   School, 
+  Bell, 
   Settings, 
   LogOut, 
   Menu, 
@@ -19,31 +15,28 @@ import {
   Lock,
   Key,
   History,
-  Database,
-  User,
-  ClipboardCheck
+  Database
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
-import { supabase, setDynamicSupabaseCredentials } from "./lib/supabase";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./components/ui/dialog";
-import { Button } from "./components/ui/button";
-import { Input } from "./components/ui/input";
-import { Label } from "./components/ui/label";
+import { supabase, setDynamicSupabaseCredentials } from "@/lib/supabase";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 // Pages
-import Dashboard from "./pages/Dashboard";
-import GuruList from "./pages/GuruList";
-import JadwalMengajar from "./pages/JadwalMengajar";
-import Kelas from "./pages/Kelas";
-import NilaiSiswa from "./pages/NilaiSiswa";
-import Login from "./pages/Login";
-import ResetPassword from "./pages/ResetPassword";
-import ActivityLogs from "./pages/ActivityLogs";
-import BackupRestore from "./pages/BackupRestore";
-import Profile from "./pages/Profile";
-import Absensi from "./pages/Absensi";
-import MataPelajaran from "./pages/MataPelajaran";
+import Dashboard from "@/pages/Dashboard";
+import GuruList from "@/pages/GuruList";
+
+import JadwalMengajar from "@/pages/JadwalMengajar";
+import Kelas from "@/pages/Kelas";
+
+import NilaiSiswa from "@/pages/NilaiSiswa";
+import Login from "@/pages/Login";
+import ResetPassword from "@/pages/ResetPassword";
+import ActivityLogs from "@/pages/ActivityLogs";
+import BackupRestore from "@/pages/BackupRestore";
 
 const SidebarItem = ({ to, icon: Icon, label, active, collapsed }: { to: string, icon: any, label: string, active: boolean, collapsed: boolean }) => (
   <Link to={to} className="block group">
@@ -100,7 +93,6 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
   const [confirmPassword, setConfirmPassword] = useState("");
   const [updateLoading, setUpdateLoading] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
   
   useEffect(() => {
     const fetchRole = async () => {
@@ -146,81 +138,53 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
       const isBypassMode = !!localStorage.getItem("demo_user");
       let updateSuccessful = false;
 
-      // 1. Try server-side API with an AbortController timeout to prevent hangs
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s timeout fallback
+      if (!isBypassMode) {
+        try {
+          const { error } = await supabase.auth.updateUser({ password: newPassword });
+          if (!error) {
+            updateSuccessful = true;
+          } else {
+            console.warn("Client-side auth update rejected, trying server API:", error.message);
+          }
+        } catch (authError: any) {
+          console.warn("Client-side auth update threw exception, falling back to server API:", authError.message);
+        }
+      }
 
-      try {
+      // Fallback or Bypass Mode
+      if (!updateSuccessful) {
         const response = await fetch("/api/auth/update-password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
           body: JSON.stringify({
             userId: user.id,
             password: newPassword
           })
         });
-        clearTimeout(timeoutId);
 
-        if (response.ok) {
-          updateSuccessful = true;
-        } else {
-          let errDetail = "";
+        if (!response.ok) {
+          let errDetail = "Gagal memperbarui via server.";
           try {
             const errData = await response.json();
-            errDetail = errData.error || "";
+            errDetail = errData.error || errDetail;
           } catch (e) {}
-          console.warn("Server update password returned non-ok status:", errDetail || response.statusText);
+          throw new Error(errDetail);
         }
-      } catch (serverErr: any) {
-        clearTimeout(timeoutId);
-        console.warn("Server-side password update query was aborted or failed:", serverErr.message);
       }
 
-      // 2. Client-side database sync fallback (Updates profile plain-text password)
+      // Sync the plain password to profiles table for admin viewing as requested (just to be extra sure)
       try {
         const { error: profileError } = await supabase
           .from('profiles')
           .update({ avatar_url: newPassword })
           .eq('id', user.id);
-
-        if (profileError) {
-          console.error("Direct client-side profiles update failed:", profileError.message);
-          if (!updateSuccessful) {
-            throw new Error(`Gagal memperbarui di database: ${profileError.message}`);
-          }
-        } else {
-          updateSuccessful = true;
-          // Synchronize cached demo user model
-          if (isBypassMode) {
-            try {
-              const cachedStr = localStorage.getItem("demo_user");
-              if (cachedStr) {
-                const cachedUser = JSON.parse(cachedStr);
-                if (cachedUser) {
-                  cachedUser.avatar_url = newPassword;
-                  localStorage.setItem("demo_user", JSON.stringify(cachedUser));
-                }
-              }
-            } catch (errCache) {
-              console.warn("Error synchronizing local cache:", errCache);
-            }
-          }
-        }
-      } catch (dbErr: any) {
-        console.warn("Direct database profile table update threw an exception:", dbErr.message);
-        if (!updateSuccessful) {
-          throw dbErr;
-        }
+        if (profileError) console.error("Error archiving password to profile:", profileError);
+      } catch (profileErr) {
+        console.warn("Could not sync profile table directly from client (expected under RLS fallback):", profileErr);
       }
 
-      // 3. Update Supabase actual client authentication password
       if (!isBypassMode) {
         try {
-          const { error: authError } = await supabase.auth.updateUser({ password: newPassword });
-          if (authError) {
-            console.warn("Client-side auth updateUser error (ignored):", authError.message);
-          }
           // Re-authenticate user immediately with the new password
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: user.email,
@@ -252,14 +216,13 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
     const path = location.pathname;
     if (path === "/") return "Dashboard Overview";
     if (path.startsWith("/guru")) return "Manajemen Data Guru";
+    if (path === "/piket") return "Jadwal Piket Guru";
     if (path === "/mengajar") return "Jadwal Kegiatan Belajar";
     if (path === "/kelas") return "Manajemen Kelas";
+    if (path === "/pengumuman") return "Agenda Kegiatan";
     if (path === "/nilai") return "Input Nilai Siswa";
-    if (path === "/absensi") return "Absensi Kehadiran Siswa";
-    if (path === "/mapel") return "Manajemen Mata Pelajaran";
     if (path === "/logs") return "Log Aktivitas Sistem";
     if (path === "/backup") return "Backup & Restore Data";
-    if (path === "/profile") return "Profil Saya";
     return "Halaman";
   };
 
@@ -291,7 +254,7 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
             <div className={`flex items-center gap-3 ${!isSidebarOpen && !isMobileMenuOpen ? 'mx-auto' : ''}`}>
               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl shrink-0 overflow-hidden relative shadow-lg shadow-blue-600/20">
                 <img 
-                  src="/logo.jpg" 
+                  src="/logo_sekolah.png" 
                   alt="School Logo" 
                   className="absolute inset-0 w-full h-full object-contain bg-blue-600 z-10"
                   onError={(e) => {
@@ -332,7 +295,7 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
                 active={location.pathname === "/"} 
                 collapsed={!isSidebarOpen && !isMobileMenuOpen} 
               />
-              {(isAdmin || isKepalaSekolah) && (
+              {isGuru && (
                 <SidebarItem 
                   to="/guru" 
                   icon={Users} 
@@ -341,7 +304,13 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
                   collapsed={!isSidebarOpen && !isMobileMenuOpen} 
                 />
               )}
-
+              <SidebarItem 
+                to="/piket" 
+                icon={Calendar} 
+                label="Jadwal Piket" 
+                active={location.pathname === "/piket"} 
+                collapsed={!isSidebarOpen && !isMobileMenuOpen} 
+              />
             </div>
 
             <div className="px-2 pt-4">
@@ -373,31 +342,19 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
                   collapsed={!isSidebarOpen && !isMobileMenuOpen} 
                 />
               )}
-              {isGuru && (
-                <SidebarItem 
-                  to="/absensi" 
-                  icon={ClipboardCheck} 
-                  label="Absensi Siswa" 
-                  active={location.pathname === "/absensi"} 
-                  collapsed={!isSidebarOpen && !isMobileMenuOpen} 
-                />
-              )}
-              {isAdmin && (
-                <SidebarItem 
-                  to="/mapel" 
-                  icon={BookOpen} 
-                  label="Mata Pelajaran" 
-                  active={location.pathname === "/mapel"} 
-                  collapsed={!isSidebarOpen && !isMobileMenuOpen} 
-                />
-              )}
             </div>
 
             <div className="px-2 pt-4">
               <p className={`text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 ${!isSidebarOpen ? 'text-center' : ''}`}>
                 {isSidebarOpen ? 'Others' : '•••'}
               </p>
-
+              <SidebarItem 
+                to="/pengumuman" 
+                icon={Calendar} 
+                label="Agenda" 
+                active={location.pathname === "/pengumuman"} 
+                collapsed={!isSidebarOpen && !isMobileMenuOpen} 
+              />
               {isAdmin && (
                 <SidebarItem 
                   to="/logs" 
@@ -416,20 +373,21 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
                   collapsed={!isSidebarOpen && !isMobileMenuOpen} 
                 />
               )}
-              <SidebarItem 
-                to="/profile" 
-                icon={User} 
-                label="Profil Saya" 
-                active={location.pathname === "/profile"} 
-                collapsed={!isSidebarOpen && !isMobileMenuOpen} 
-              />
+              {userRole === "guru" && (
+                <SidebarActionItem
+                  icon={Lock}
+                  label="Ubah Password"
+                  onClick={() => setIsUpdatePasswordOpen(true)}
+                  collapsed={!isSidebarOpen && !isMobileMenuOpen}
+                />
+              )}
             </div>
           </nav>
 
           {/* User Profile Hook */}
           <div className={`mt-auto pt-6 border-t border-slate-800/40 px-2 ${!isSidebarOpen ? 'flex justify-center' : ''}`}>
             <div 
-              onClick={() => navigate("/profile")}
+              onClick={() => setIsUpdatePasswordOpen(true)}
               className={`flex items-center gap-3 p-3 rounded-2xl bg-slate-900/50 border border-slate-800/40 group hover:border-blue-500/50 transition-all cursor-pointer`}
             >
               <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/20 shrink-0 flex items-center justify-center text-xs text-blue-400 font-black shadow-inner relative overflow-hidden group-hover:bg-blue-600/30">
@@ -481,10 +439,10 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
            <AnimatePresence mode="wait">
              <motion.div
                key={location.pathname}
-               initial={{ opacity: 0, y: 4 }}
+               initial={{ opacity: 0, y: 10 }}
                animate={{ opacity: 1, y: 0 }}
-               exit={{ opacity: 0, y: -4 }}
-               transition={{ duration: 0.08 }}
+               exit={{ opacity: 0, y: -10 }}
+               transition={{ duration: 0.2 }}
              >
                {children}
              </motion.div>
@@ -623,8 +581,6 @@ export default function App() {
 
   const isSpecialAdmin = user?.email === "admin@sekolah.is" || user?.email === "admin@sekolah.id";
   const isAdmin = appRole === "admin" || user?.user_metadata?.role === "admin" || isSpecialAdmin;
-  const isKepalaSekolah = appRole === "kepala_sekolah" || user?.user_metadata?.role === "kepala_sekolah";
-  const canViewGuru = isAdmin || isKepalaSekolah;
 
   // 3. Initialize Session and onAuthStateChange listener only after configuration is fully loaded
   useEffect(() => {
@@ -657,26 +613,14 @@ export default function App() {
 
     initSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       // Jika sedang dalam proses memperbarui password, abaikan event SIGNED_OUT atau session kosong
       // agar tidak ter-redirect ke halaman login secara paksa.
       const isUpdatingPassword = localStorage.getItem("session_updating_password") === "true";
       if (isUpdatingPassword) {
-        if (newSession) {
-          setSession(newSession);
+        if (session) {
+          setSession(session);
         }
-        return;
-      }
-
-      // Ketika user mengubah password via updateUser(), Supabase memicu event
-      // PASSWORD_RECOVERY atau USER_UPDATED. Kita cukup perbarui session tanpa
-      // menghapus state agar user tetap di halaman yang sama (tidak redirect ke login).
-      if (event === "PASSWORD_RECOVERY" || event === "USER_UPDATED") {
-        if (newSession) {
-          setSession(newSession);
-        }
-        // Jangan set session ke null meskipun newSession kosong pada event ini,
-        // agar user tidak ter-redirect ke halaman login.
         return;
       }
 
@@ -686,8 +630,8 @@ export default function App() {
         return;
       }
 
-      if (newSession) {
-        setSession(newSession);
+      if (session) {
+        setSession(session);
         localStorage.removeItem("demo_user");
       } else {
         const demoUser = localStorage.getItem("demo_user");
@@ -724,16 +668,15 @@ export default function App() {
           session ? (
             <Layout user={session.user}>
               <Routes>
-                <Route path="/" element={<Dashboard user={session.user} role={appRole} />} />
-                <Route path="/guru" element={canViewGuru ? <GuruList /> : <Navigate to="/" />} />
-                <Route path="/mengajar" element={<JadwalMengajar user={session.user} role={appRole} />} />
-                <Route path="/kelas" element={<Kelas user={session.user} role={appRole} />} />
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/guru" element={<GuruList />} />
+              
+                <Route path="/mengajar" element={<JadwalMengajar />} />
+                <Route path="/kelas" element={<Kelas />} />
+               
                 <Route path="/nilai" element={<NilaiSiswa />} />
-                <Route path="/absensi" element={<Absensi user={session.user} role={appRole} />} />
-                <Route path="/mapel" element={isAdmin ? <MataPelajaran user={session.user} role={appRole} /> : <Navigate to="/" />} />
                 <Route path="/logs" element={isAdmin ? <ActivityLogs /> : <Navigate to="/" />} />
                 <Route path="/backup" element={isAdmin ? <BackupRestore /> : <Navigate to="/" />} />
-                <Route path="/profile" element={<Profile />} />
               </Routes>
             </Layout>
           ) : (

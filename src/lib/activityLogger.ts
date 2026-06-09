@@ -1,3 +1,9 @@
+/**
+ * activityLogger.ts
+ * Utilitas untuk mencatat log aktivitas pengguna (seperti penambahan data,
+ * modifikasi nilai, inisialisasi presensi) secara non-blocking di latar belakang.
+ * Log disimpan secara lokal di localStorage dan dikirimkan ke server.
+ */
 import { supabase } from "./supabase";
 
 // In-memory cache for current user and profile data to avoid heavy Supabase queries on every single log
