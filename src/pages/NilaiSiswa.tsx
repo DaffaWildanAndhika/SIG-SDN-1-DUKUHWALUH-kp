@@ -30,6 +30,17 @@ import { toast } from "sonner";
 import { logActivity } from "@/lib/activityLogger";
 import XLSX from "xlsx-js-style";
 
+const generateUUID = () => {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 export default function NilaiSiswa() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -389,7 +400,8 @@ export default function NilaiSiswa() {
       if (viewMode === "harian") {
         const payload = students.map(student => {
           const grade = grades[student.id];
-          const data: any = {
+          return {
+            id: grade.id || generateUUID(),
             student_id: student.id,
             class_id: selectedClassId,
             subject: selectedSubject,
@@ -402,8 +414,6 @@ export default function NilaiSiswa() {
             academic_year: selectedSemester === "1" ? `${selectedClass?.academic_year || "2025/2026"}-1` : `${selectedClass?.academic_year || "2025/2026"}-2`,
             teacher_id: validTeacherId
           };
-          if (grade.id) data.id = grade.id;
-          return data;
         });
 
         const { error } = await supabase
@@ -415,7 +425,8 @@ export default function NilaiSiswa() {
       } else {
         const payload = students.map(student => {
           const grade = semesterGrades[student.id];
-          const data: any = {
+          return {
+            id: grade.id || generateUUID(),
             student_id: student.id,
             class_id: selectedClassId,
             subject: selectedSubject,
@@ -426,8 +437,6 @@ export default function NilaiSiswa() {
             academic_year: selectedSemester === "1" ? `${selectedClass?.academic_year || "2025/2026"}-1` : `${selectedClass?.academic_year || "2025/2026"}-2`,
             teacher_id: validTeacherId
           };
-          if (grade.id) data.id = grade.id;
-          return data;
         });
 
         const { error } = await supabase

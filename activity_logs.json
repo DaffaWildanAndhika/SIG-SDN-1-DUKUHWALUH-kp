@@ -1,5 +1,16 @@
 [
   {
+    "id": "170j6cgzg_1781003710931",
+    "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
+    "user_fullname": "Daffa Wildan Andhika S.Pd",
+    "user_role": "guru",
+    "action": "Menginput Nilai Harian",
+    "details": "Menginput/memperbarui nilai harian mata pelajaran Pendidikan Pancasila - Bab/Materi: 1 untuk seluruh siswa di kelas 5A Test Semester 1",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-09T11:15:10.931Z"
+  },
+  {
     "id": "2d27noupq_1781003106642",
     "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
     "user_fullname": "Daffa Wildan Andhika S.Pd",
