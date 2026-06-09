@@ -35,7 +35,9 @@ import {
   SelectContent, 
   SelectItem, 
   SelectTrigger, 
-  SelectValue 
+  SelectValue,
+  SelectGroup,
+  SelectLabel
 } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -59,6 +61,7 @@ export default function Absensi({ user: propUser, role: propRole }: PageProps = 
   // Class & Student listing states
   const [classList, setClassList] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>("");
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
   const [students, setStudents] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toLocaleDateString("en-CA") // format YYYY-MM-DD in local time
@@ -76,6 +79,7 @@ export default function Absensi({ user: propUser, role: propRole }: PageProps = 
   const [activeTab, setActiveTab] = useState<"input" | "rekap">("input");
   const [selectedSemester, setSelectedSemester] = useState<string>("1");
   const [rekapData, setRekapData] = useState<any[]>([]);
+  const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
   const [loadingRekap, setLoadingRekap] = useState<boolean>(false);
   const [startDateSem, setStartDateSem] = useState<string>("");
   const [endDateSem, setEndDateSem] = useState<string>("");
@@ -565,8 +569,19 @@ CREATE POLICY "Admins and teachers can manage attendance" ON attendance FOR ALL 
       }
 
       setClassList(fetchedClasses);
+      const years = Array.from(new Set(fetchedClasses.map((c: any) => c.academic_year || "Lainnya"))).sort().reverse();
+      let defaultYear = "";
+      if (years.length > 0) {
+        defaultYear = years[0];
+        setSelectedAcademicYear(defaultYear);
+      }
       if (fetchedClasses.length > 0) {
-        setSelectedClassId(fetchedClasses[0].id);
+        const classesInYear = fetchedClasses.filter(c => (c.academic_year || "Lainnya") === defaultYear);
+        if (classesInYear.length > 0) {
+          setSelectedClassId(classesInYear[0].id);
+        } else {
+          setSelectedClassId(fetchedClasses[0].id);
+        }
       }
     } catch (err: any) {
       console.error("Gagal inisialisasi modul absensi:", err);
@@ -942,17 +957,46 @@ CREATE POLICY "Admins and teachers can manage attendance" ON attendance FOR ALL 
           ) : (
             <div className="space-y-4">
               <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pilih Tahun Ajaran</label>
+                <Select 
+                  value={selectedAcademicYear} 
+                  onValueChange={(year) => {
+                    setSelectedAcademicYear(year);
+                    const filtered = classList.filter(c => (c.academic_year || "Lainnya") === year);
+                    if (filtered.length > 0) {
+                      setSelectedClassId(filtered[0].id);
+                    } else {
+                      setSelectedClassId("");
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-12 bg-slate-50/70 border-none rounded-2xl font-bold text-slate-700 text-left px-4 focus-visible:ring-blue-500">
+                    <SelectValue placeholder="Pilih Tahun Ajaran" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-slate-100 font-bold text-slate-600 text-sm">
+                    {Array.from(new Set(classList.map((c: any) => c.academic_year || "Lainnya"))).sort().reverse().map(year => (
+                      <SelectItem key={year} value={year} className="rounded-xl font-bold">
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pilih Kelas</label>
                 <Select value={selectedClassId} onValueChange={setSelectedClassId}>
                   <SelectTrigger className="h-12 bg-slate-50/70 border-none rounded-2xl font-bold text-slate-700 text-left px-4 focus-visible:ring-blue-500">
                     <SelectValue placeholder="Pilih Kelas" />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl border-slate-100 font-bold text-slate-600 text-sm">
-                    {classList.map((cls) => (
-                      <SelectItem key={cls.id} value={cls.id} className="rounded-xl font-bold">
-                        {cls.name} (Ajaran {cls.academic_year})
-                      </SelectItem>
-                    ))}
+                    {classList
+                      .filter(c => (c.academic_year || "Lainnya") === selectedAcademicYear)
+                      .map(cls => (
+                        <SelectItem key={cls.id} value={cls.id} className="rounded-xl font-bold">
+                          {cls.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>

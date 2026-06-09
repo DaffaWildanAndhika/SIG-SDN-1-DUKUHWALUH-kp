@@ -22,7 +22,9 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  SelectGroup,
+  SelectLabel
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
@@ -47,6 +49,7 @@ export default function NilaiSiswa() {
   const [saving, setSaving] = useState(false);
   const [classList, setClassList] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>("");
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState<string>("");
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [scopeName, setScopeName] = useState<string>("");
   const [viewMode, setViewMode] = useState<"harian" | "rapor">("harian");
@@ -56,6 +59,7 @@ export default function NilaiSiswa() {
   const [userRole, setUserRole] = useState<string>("");
   const [selectedSemester, setSelectedSemester] = useState<string>("1");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
+  const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
 
   // Reset scopeName when semester changes
   useEffect(() => {
@@ -167,16 +171,31 @@ export default function NilaiSiswa() {
       const paramClassId = searchParams.get("classId");
       const paramSubject = searchParams.get("subject");
 
+      const years = Array.from(new Set((data || []).map((c: any) => c.academic_year || "Lainnya"))).sort().reverse();
+      let defaultYear = "";
+      let defaultClassId = "";
+
       if (paramClassId) {
-        // Only set if the class is actually in the visible list for this user
-        if (!data?.find(c => c.id === paramClassId)) {
-          if (data && data.length > 0) setSelectedClassId(data[0].id);
-        } else {
-          setSelectedClassId(paramClassId);
+        const matchedClass = data?.find(c => c.id === paramClassId);
+        if (matchedClass) {
+          defaultYear = matchedClass.academic_year || "Lainnya";
+          defaultClassId = paramClassId;
         }
-      } else if (data && data.length > 0) {
-        setSelectedClassId(data[0].id);
       }
+
+      if (!defaultYear && years.length > 0) {
+        defaultYear = years[0];
+      }
+
+      if (!defaultClassId && defaultYear && data) {
+        const classesInYear = data.filter(c => (c.academic_year || "Lainnya") === defaultYear);
+        if (classesInYear.length > 0) {
+          defaultClassId = classesInYear[0].id;
+        }
+      }
+
+      setSelectedAcademicYear(defaultYear);
+      setSelectedClassId(defaultClassId);
 
       if (paramSubject) {
         setSelectedSubject(paramSubject);
@@ -1132,7 +1151,37 @@ export default function NilaiSiswa() {
       {/* Control & Filter Section */}
       <Card className="border-slate-100 shadow-xl shadow-slate-200/40 rounded-[32px] overflow-hidden bg-white">
         <div className="p-8 grid grid-cols-1 md:grid-cols-12 gap-8 items-end">
-          <div className="md:col-span-2 space-y-3">
+          <div className="md:col-span-4 space-y-3">
+            <div className="flex items-center gap-2 ml-1">
+              <div className="w-1 h-1 rounded-full bg-blue-500"></div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Ajaran</label>
+            </div>
+            <Select 
+              value={selectedAcademicYear} 
+              onValueChange={(year) => {
+                setSelectedAcademicYear(year);
+                const filtered = classList.filter(c => (c.academic_year || "Lainnya") === year);
+                if (filtered.length > 0) {
+                  setSelectedClassId(filtered[0].id);
+                } else {
+                  setSelectedClassId("");
+                }
+              }}
+            >
+              <SelectTrigger className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 focus:ring-blue-500 transition-all">
+                <SelectValue placeholder="Pilih Tahun Ajaran" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
+                {Array.from(new Set(classList.map((c: any) => c.academic_year || "Lainnya"))).sort().reverse().map(year => (
+                  <SelectItem key={year} value={year} className="font-bold py-3 px-4">
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="md:col-span-4 space-y-3">
             <div className="flex items-center gap-2 ml-1">
               <div className="w-1 h-1 rounded-full bg-blue-500"></div>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Rombongan Belajar</label>
@@ -1142,14 +1191,18 @@ export default function NilaiSiswa() {
                 <SelectValue placeholder="Pilih Kelas" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
-                {classList.map(cls => (
-                  <SelectItem key={cls.id} value={cls.id} className="font-bold py-3 px-4">{cls.name} <span className="text-[10px] text-slate-400 ml-2 font-medium">{cls.academic_year}</span></SelectItem>
-                ))}
+                {classList
+                  .filter(c => (c.academic_year || "Lainnya") === selectedAcademicYear)
+                  .map(cls => (
+                    <SelectItem key={cls.id} value={cls.id} className="font-bold py-3 px-4">
+                      {cls.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="md:col-span-2 space-y-3">
+          <div className="md:col-span-4 space-y-3">
             <div className="flex items-center gap-2 ml-1">
               <div className="w-1 h-1 rounded-full bg-blue-500"></div>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Semester</label>
@@ -1165,7 +1218,7 @@ export default function NilaiSiswa() {
             </Select>
           </div>
 
-          <div className="md:col-span-3 space-y-3">
+          <div className="md:col-span-4 space-y-3">
             <div className="flex items-center gap-2 ml-1">
               <div className="w-1 h-1 rounded-full bg-blue-500"></div>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mata Pelajaran</label>
@@ -1182,7 +1235,7 @@ export default function NilaiSiswa() {
             </Select>
           </div>
 
-          <div className="md:col-span-2 space-y-3">
+          <div className="md:col-span-4 space-y-3">
             <div className="flex items-center gap-2 ml-1">
               <div className="w-1 h-1 rounded-full bg-blue-500"></div>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -1223,7 +1276,7 @@ export default function NilaiSiswa() {
             )}
           </div>
 
-          <div className="md:col-span-3 flex flex-col gap-3">
+          <div className="md:col-span-4 flex flex-col gap-3">
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"
