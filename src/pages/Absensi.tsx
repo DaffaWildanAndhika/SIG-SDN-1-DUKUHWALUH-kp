@@ -509,7 +509,7 @@ CREATE POLICY "Admins and teachers can manage attendance" ON attendance FOR ALL 
 
       // 3. Fetch Classes list based on Authorization criteria
       let fetchedClasses: any[] = [];
-      if (isAdminRole) {
+      if (isAdminRole || resolvedRole === "kepala_sekolah") {
         // Admins can fetch all classes
         const { data: dataAll, error } = await supabase
           .from('classes')

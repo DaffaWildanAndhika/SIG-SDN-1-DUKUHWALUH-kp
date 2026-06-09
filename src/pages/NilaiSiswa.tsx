@@ -92,7 +92,15 @@ export default function NilaiSiswa() {
   }, []);
 
   const checkUserRole = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    let currentUser: any = null;
+    try {
+      const { data } = await supabase.auth.getUser();
+      currentUser = data?.user;
+    } catch (e) {}
+
+    const demoUser = localStorage.getItem("demo_user");
+    const user = currentUser || (demoUser ? JSON.parse(demoUser) : null);
+
     if (user) {
       const { data: profile } = await supabase
         .from('profiles')
@@ -115,8 +123,18 @@ export default function NilaiSiswa() {
 
   const fetchClasses = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      let currentUser: any = null;
+      try {
+        const { data } = await supabase.auth.getUser();
+        currentUser = data?.user;
+      } catch (e) {}
+
+      const demoUser = localStorage.getItem("demo_user");
+      const user = currentUser || (demoUser ? JSON.parse(demoUser) : null);
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       let role = "guru";
       let matchedUserProfileIds: string[] = [user.id];
@@ -411,7 +429,14 @@ export default function NilaiSiswa() {
 
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      let currentUser: any = null;
+      try {
+        const { data } = await supabase.auth.getUser();
+        currentUser = data?.user;
+      } catch (e) {}
+
+      const demoUser = localStorage.getItem("demo_user");
+      const user = currentUser || (demoUser ? JSON.parse(demoUser) : null);
 
       let validTeacherId = null;
       if (user) {
@@ -1156,8 +1181,8 @@ export default function NilaiSiswa() {
               <div className="w-1 h-1 rounded-full bg-blue-500"></div>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tahun Ajaran</label>
             </div>
-            <Select 
-              value={selectedAcademicYear} 
+            <Select
+              value={selectedAcademicYear}
               onValueChange={(year) => {
                 setSelectedAcademicYear(year);
                 const filtered = classList.filter(c => (c.academic_year || "Lainnya") === year);
