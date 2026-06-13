@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { FormattedDateInput } from "@/components/ui/formatted-date-input";
 import { 
   Select, 
   SelectContent, 
@@ -1326,10 +1327,9 @@ export default function Kelas({ user: propUser, role: propRole }: PageProps = {}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Lahir</Label>
-                  <Input 
-                    type="date"
+                  <FormattedDateInput 
                     value={studentFormData.dob}
-                    onChange={(e) => setStudentFormData({ ...studentFormData, dob: e.target.value })}
+                    onChange={(val) => setStudentFormData({ ...studentFormData, dob: val })}
                     className="h-10 bg-slate-50 border-slate-100 rounded-xl font-bold px-4 text-sm"
                   />
                 </div>

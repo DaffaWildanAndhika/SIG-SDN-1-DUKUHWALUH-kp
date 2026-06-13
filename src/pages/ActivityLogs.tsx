@@ -17,11 +17,14 @@ import {
   ShieldAlert,
   Trash2,
   Calendar,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { FormattedDateInput } from "@/components/ui/formatted-date-input";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -109,6 +112,12 @@ export default function ActivityLogs() {
   const [actionFilter, setActionFilter] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, roleFilter, actionFilter, startDate, endDate]);
 
   const fetchLogs = async () => {
     if (logs.length === 0) {
@@ -226,6 +235,12 @@ export default function ActivityLogs() {
 
     return matchesSearch && matchesActionType && matchesRole && matchesDate;
   });
+
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const paginatedLogs = filteredLogs.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const clearLogs = async () => {
     if (!confirm("Apakah Anda yakin ingin mengosongkan riwayat log aktivitas? Tindakan ini tidak dapat dibatalkan.")) {
@@ -372,17 +387,15 @@ export default function ActivityLogs() {
                 </div>
                 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <Input 
-                    type="date"
+                  <FormattedDateInput 
                     value={startDate}
-                    onChange={e => setStartDate(e.target.value)}
+                    onChange={setStartDate}
                     className="h-10 px-3 bg-[#F8FAFC] border-none rounded-xl font-bold text-slate-600 text-xs focus-visible:ring-blue-500 w-full sm:w-36 cursor-pointer"
                   />
                   <span className="text-slate-300 font-bold text-xs-no-wrap">s/d</span>
-                  <Input 
-                    type="date"
+                  <FormattedDateInput 
                     value={endDate}
-                    onChange={e => setEndDate(e.target.value)}
+                    onChange={setEndDate}
                     className="h-10 px-3 bg-[#F8FAFC] border-none rounded-xl font-bold text-slate-600 text-xs focus-visible:ring-blue-500 w-full sm:w-36 cursor-pointer"
                   />
                 </div>
@@ -430,7 +443,7 @@ export default function ActivityLogs() {
               ) : (
                 <div className="divide-y divide-slate-100">
                   <AnimatePresence initial={false}>
-                    {filteredLogs.map((log) => (
+                    {paginatedLogs.map((log) => (
                       <motion.div 
                         key={log.id}
                         initial={{ opacity: 0 }}
@@ -498,6 +511,69 @@ export default function ActivityLogs() {
                       </motion.div>
                     ))}
                   </AnimatePresence>
+                </div>
+              )}
+
+              {/* Pagination Controls */}
+              {filteredLogs.length > 0 && totalPages > 1 && (
+                <div className="p-6 md:px-8 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
+                  <span className="text-xs text-slate-400 font-bold">
+                    Menampilkan <span className="text-slate-700">{(currentPage - 1) * itemsPerPage + 1}</span> s.d.{" "}
+                    <span className="text-slate-700">{Math.min(currentPage * itemsPerPage, filteredLogs.length)}</span> dari{" "}
+                    <span className="text-slate-700">{filteredLogs.length}</span> log
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="h-9 w-9 p-0 rounded-xl bg-white border-slate-200/80 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all flex items-center justify-center disabled:opacity-50"
+                    >
+                      <ChevronLeft size={16} />
+                    </Button>
+
+                    {/* Page Numbers */}
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((page) => {
+                        return (
+                          page === 1 ||
+                          page === totalPages ||
+                          Math.abs(page - currentPage) <= 1
+                        );
+                      })
+                      .map((page, index, array) => {
+                        const showEllipsis = index > 0 && page - array[index - 1] > 1;
+                        return (
+                          <React.Fragment key={page}>
+                            {showEllipsis && <span className="text-slate-400 font-bold text-xs select-none px-1">...</span>}
+                            <Button
+                              variant={currentPage === page ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(page)}
+                              className={`h-9 w-9 p-0 rounded-xl font-bold text-xs transition-all ${
+                                currentPage === page
+                                  ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                                  : "bg-white border-slate-200/80 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                              }`}
+                            >
+                              {page}
+                            </Button>
+                          </React.Fragment>
+                        );
+                      })}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="h-9 w-9 p-0 rounded-xl bg-white border-slate-200/80 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all flex items-center justify-center disabled:opacity-50"
+                    >
+                      <ChevronRight size={16} />
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>

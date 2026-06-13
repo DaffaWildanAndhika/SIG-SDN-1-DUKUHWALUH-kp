@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { FormattedDateInput } from "@/components/ui/formatted-date-input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -1004,10 +1005,9 @@ CREATE POLICY "Admins and teachers can manage attendance" ON attendance FOR ALL 
               {activeTab === "input" ? (
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Absensi</label>
-                  <Input
-                    type="date"
+                  <FormattedDateInput
                     value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
+                    onChange={setSelectedDate}
                     className="h-12 bg-slate-50/70 border-none rounded-2xl font-bold text-slate-700 px-4 focus:ring-blue-500 cursor-pointer text-sm"
                   />
                 </div>
@@ -1028,20 +1028,18 @@ CREATE POLICY "Admins and teachers can manage attendance" ON attendance FOR ALL 
 
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Mulai</label>
-                    <Input
-                      type="date"
+                    <FormattedDateInput
                       value={startDateSem}
-                      onChange={(e) => setStartDateSem(e.target.value)}
+                      onChange={setStartDateSem}
                       className="h-12 bg-slate-50/70 border-none rounded-2xl font-bold text-slate-700 px-4 focus:ring-blue-500 cursor-pointer text-sm"
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Selesai</label>
-                    <Input
-                      type="date"
+                    <FormattedDateInput
                       value={endDateSem}
-                      onChange={(e) => setEndDateSem(e.target.value)}
+                      onChange={setEndDateSem}
                       className="h-12 bg-slate-50/70 border-none rounded-2xl font-bold text-slate-700 px-4 focus:ring-blue-500 cursor-pointer text-sm"
                     />
                   </div>

@@ -1,5 +1,40 @@
 [
   {
+    "id": "55stv55tz_1781355586783",
+    "user_id": "f6a673db-5e10-4736-ba16-78ecf3515f9e",
+    "user_fullname": "Administrator 1",
+    "user_role": "admin",
+    "action": "Mengubah Data Guru",
+    "details": "Mengubah informasi data akun guru Administrator 1 (NIP: -)",
+    "prev_data": {
+      "id": "f6a673db-5e10-4736-ba16-78ecf3515f9e",
+      "nip": null,
+      "full_name": "Administrator Baru",
+      "role": "admin",
+      "avatar_url": "admin123",
+      "gender": null,
+      "subject": null,
+      "phone": null,
+      "address": null,
+      "is_active": true,
+      "created_at": "2026-06-13T12:58:01.776849+00:00",
+      "updated_at": "2026-06-13T12:58:01.776849+00:00",
+      "email": "admin@gmail.com"
+    },
+    "new_data": {
+      "nip": "",
+      "full_name": "Administrator 1",
+      "gender": "Laki-laki",
+      "subject": "",
+      "phone": "",
+      "is_active": true,
+      "address": "",
+      "email": "admin@gmail.com",
+      "password": ""
+    },
+    "created_at": "2026-06-13T12:59:46.783Z"
+  },
+  {
     "id": "y1xiq4imp_1781004085980",
     "user_id": "5f2edbe3-7351-45e4-aa6d-73799261d922",
     "user_fullname": "Daffa Wildan Andhika S.Pd",

@@ -12,7 +12,7 @@ Run the following SQL in the **SQL Editor** of your Supabase project:
 
 ```sql
 -- Roles enumeration
-CREATE TYPE user_role AS ENUM ('admin', 'guru', 'kepala_sekolah');
+CREATE TYPE user_role AS ENUM ('admin', 'guru');
 
 -- Profiles table (linked to auth.users)
 CREATE TABLE profiles (

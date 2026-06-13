@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { FormattedDateInput } from "@/components/ui/formatted-date-input";
 import { 
   Select, 
   SelectContent, 
@@ -1226,10 +1227,9 @@ export default function JadwalMengajar({ user: propUser, role: propRole }: PageP
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tanggal Pembelajaran</Label>
-                  <Input 
-                    type="date"
+                  <FormattedDateInput 
                     value={materialData.tanggal_pembelajaran}
-                    onChange={(e) => setMaterialData({ ...materialData, tanggal_pembelajaran: e.target.value })}
+                    onChange={(val) => setMaterialData({ ...materialData, tanggal_pembelajaran: val })}
                     className="h-12 bg-slate-50 border-slate-100 rounded-xl font-bold focus-visible:ring-indigo-500 px-4 cursor-pointer"
                     required
                   />
