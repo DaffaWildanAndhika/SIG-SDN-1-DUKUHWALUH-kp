@@ -1,3 +1,8 @@
+/**
+ * types/index.ts
+ * Berkas definisi tipe data TypeScript (interfaces & types) untuk aplikasi.
+ * Mendefinisikan tipe entitas database seperti profil guru, kelas, jadwal mengajar, dan pengumuman.
+ */
 export type UserRole = 'admin' | 'guru' | 'kepala_sekolah';
 
 export interface Profile {

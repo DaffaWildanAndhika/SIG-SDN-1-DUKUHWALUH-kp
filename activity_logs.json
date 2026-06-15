@@ -1,5 +1,49 @@
 [
   {
+    "id": "7j7dxa250_1781527175284",
+    "user_id": "66086f7b-d2f2-46e3-a44b-c7de540a6e0a",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengubah Mata Pelajaran",
+    "details": "Mengubah nama mata pelajaran \"Agama\" menjadi \"Agama\" (KKM: 80)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-15T12:39:35.284Z"
+  },
+  {
+    "id": "f4ewiklr3_1781527164485",
+    "user_id": "66086f7b-d2f2-46e3-a44b-c7de540a6e0a",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Mengubah Mata Pelajaran",
+    "details": "Mengubah nama mata pelajaran \"Agama\" menjadi \"Agama\" (KKM: 81)",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-15T12:39:24.485Z"
+  },
+  {
+    "id": "57sqhcg8z_1781527018624",
+    "user_id": "66086f7b-d2f2-46e3-a44b-c7de540a6e0a",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Menghapus Mata Pelajaran",
+    "details": "Menghapus mata pelajaran: \"Bahasa Jawa\"",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-15T12:36:58.624Z"
+  },
+  {
+    "id": "wu547rc8f_1781525328065",
+    "user_id": "66086f7b-d2f2-46e3-a44b-c7de540a6e0a",
+    "user_fullname": "Administrator",
+    "user_role": "admin",
+    "action": "Import Data Siswa",
+    "details": "Mengimpor 12 siswa baru ke kelas 1A dari file Excel Template_Import_Murid (1).xlsx",
+    "prev_data": null,
+    "new_data": null,
+    "created_at": "2026-06-15T12:08:48.065Z"
+  },
+  {
     "id": "55stv55tz_1781355586783",
     "user_id": "f6a673db-5e10-4736-ba16-78ecf3515f9e",
     "user_fullname": "Administrator 1",

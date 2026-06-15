@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -75,20 +76,45 @@ export default function NilaiSiswa() {
     setSelectedStudentId("");
   }, [selectedClassId, selectedSemester, viewMode]);
 
-  const subjects = [
-    "Pendidikan Pancasila",
-    "Bahasa Indonesia",
-    "Matematika",
-    "IPA",
-    "Seni Budaya",
-    "PJOK",
-    "Bahasa Inggris",
-    "Agama"
-  ];
+  const [subjectList, setSubjectList] = useState<any[]>([]);
+
+  const subjects = subjectList.map(s => s.name);
+
+  const getKKM = (subName: string): number => {
+    const sub = subjectList.find(s => s.name === subName);
+    return sub && typeof sub.kkm === 'number' ? sub.kkm : 75;
+  };
+
+  const fetchSubjects = async () => {
+    try {
+      const { data, error } = await supabase.from('subjects').select('*').order('name');
+      if (error) throw error;
+      setSubjectList(data || []);
+    } catch (err) {
+      console.warn("Using subjects local storage fallback in NilaiSiswa:", err);
+      const cached = localStorage.getItem("subjects_list");
+      if (cached) {
+        setSubjectList(JSON.parse(cached));
+      } else {
+        const defaultList = [
+          { name: "Pendidikan Pancasila", kkm: 75 },
+          { name: "Bahasa Indonesia", kkm: 75 },
+          { name: "Matematika", kkm: 75 },
+          { name: "IPA", kkm: 75 },
+          { name: "Seni Budaya", kkm: 75 },
+          { name: "PJOK", kkm: 75 },
+          { name: "Bahasa Inggris", kkm: 75 },
+          { name: "Agama", kkm: 75 }
+        ];
+        setSubjectList(defaultList);
+      }
+    }
+  };
 
   useEffect(() => {
     checkUserRole();
     fetchClasses();
+    fetchSubjects();
   }, []);
 
   const checkUserRole = async () => {
@@ -1037,11 +1063,13 @@ export default function NilaiSiswa() {
               else if (pred === 'C') data.cell.styles.textColor = [245, 158, 11];
               else if (pred === 'D') data.cell.styles.textColor = [239, 68, 68];
             }
-            // Bold final score
+            // Bold final score based on dynamic KKM of the subject in that row
             if (data.section === 'body' && data.column.index === 5) {
               const val = data.cell.raw;
               if (typeof val === 'number' && val > 0) {
-                if (val >= 75) data.cell.styles.textColor = [16, 185, 129];
+                const rowSubject = data.row.cells[1].raw; // Subject name is in column 1
+                const kkm = getKKM(rowSubject);
+                if (val >= kkm) data.cell.styles.textColor = [16, 185, 129];
                 else data.cell.styles.textColor = [239, 68, 68];
               }
             }
@@ -1121,11 +1149,10 @@ export default function NilaiSiswa() {
     }
   };
 
-  const getGradeColor = (score: number) => {
-    if (score >= 85) return "text-emerald-600";
-    if (score >= 75) return "text-blue-600";
-    if (score >= 60) return "text-amber-600";
-    return "text-red-600";
+  const getGradeColor = (score: number, subjectName?: string) => {
+    if (score === 0) return "text-slate-400";
+    const kkm = getKKM(subjectName || selectedSubject);
+    return score >= kkm ? "text-emerald-600" : "text-red-600";
   };
 
   return (
@@ -1459,7 +1486,7 @@ export default function NilaiSiswa() {
                                 </span>
                                 <div className="w-12 h-1.5 bg-white rounded-full overflow-hidden border border-blue-100">
                                   <div
-                                    className={`h-full transition-all duration-500 ${avg >= 75 ? 'bg-emerald-500' : avg >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                    className={`h-full transition-all duration-500 ${avg >= getKKM(selectedSubject) ? 'bg-emerald-500' : 'bg-red-500'}`}
                                     style={{ width: `${avg}%` }}
                                   ></div>
                                 </div>
@@ -1538,8 +1565,8 @@ export default function NilaiSiswa() {
                                 <span className={`text-3xl font-black tracking-tighter ${getGradeColor(final)}`}>
                                   {final}
                                 </span>
-                                <Badge className={`${final >= 75 ? 'bg-emerald-600' : 'bg-red-600'} border-none text-[8px] font-black px-3 py-1 rounded-full text-white uppercase tracking-widest`}>
-                                  {final >= 75 ? "KOMPETEN" : "REMIDIAL"}
+                                <Badge className={`${final >= getKKM(selectedSubject) ? 'bg-emerald-600' : 'bg-red-600'} border-none text-[8px] font-black px-3 py-1 rounded-full text-white uppercase tracking-widest`}>
+                                  {final >= getKKM(selectedSubject) ? "KOMPETEN" : "REMIDIAL"}
                                 </Badge>
                               </div>
                             </TableCell>

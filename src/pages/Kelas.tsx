@@ -5,7 +5,7 @@
  * (tambah/edit/hapus siswa di kelas), serta ekspor laporan kelas/siswa ke format PDF dan Excel.
  */
 import React, { useState, useEffect } from "react";
-import { School, User, Hash, MoreHorizontal, Plus, Edit2, Trash2, Users, MapPin, Search, Download, FileSpreadsheet, FileText, ArrowRight } from "lucide-react";
+import { School, User, Hash, MoreHorizontal, Plus, Edit2, Trash2, Users, MapPin, Search, Download, FileSpreadsheet, FileText, ArrowRight, Upload, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { logActivity } from "@/lib/activityLogger";
-import XLSX from "xlsx-js-style";
+import * as XLSX from "xlsx";
+import "xlsx-js-style";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -81,6 +82,13 @@ export default function Kelas({ user: propUser, role: propRole }: PageProps = {}
   const [academicYearFilter, setAcademicYearFilter] = useState("all");
   const [searchStudentsQuery, setSearchStudentsQuery] = useState("");
   const [studentStatusFilter, setStudentStatusFilter] = useState("all");
+
+  // Student Import State
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importedData, setImportedData] = useState<any[]>([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importSummary, setImportSummary] = useState({ total: 0, valid: 0, invalid: 0 });
 
   // Form State
   const [formData, setFormData] = useState({
@@ -158,7 +166,7 @@ export default function Kelas({ user: propUser, role: propRole }: PageProps = {}
     }
   };
 
-  const canManageStudents = isAdmin || isTeacher || isKepalaSekolah;
+  const canManageStudents = isAdmin || isKepalaSekolah;
 
   const fetchGurus = async () => {
     const { data } = await supabase.from('profiles').select('id, full_name').eq('role', 'guru').order('full_name');
@@ -358,6 +366,254 @@ export default function Kelas({ user: propUser, role: propRole }: PageProps = {}
       fetchClasses(); // Refresh counts
     } catch (error: any) {
       toast.error("Gagal menghapus data murid: " + error.message);
+    }
+  };
+
+  const handleImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFile(file);
+    parseExcelFile(file);
+  };
+
+  const convertExcelDate = (excelDate: any): string => {
+    if (!excelDate) return "";
+    
+    // If it's a number (serial date)
+    if (typeof excelDate === 'number') {
+      const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    
+    // If it's a string
+    const dateStr = String(excelDate).trim();
+    if (!dateStr) return "";
+    
+    // Check for YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // Check for DD-MM-YYYY or DD/MM/YYYY
+    const ddmmyyyy = dateStr.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (ddmmyyyy) {
+      const [_, d, m, y] = ddmmyyyy;
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    
+    // Try default JS Date parsing
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      const yyyy = parsed.getFullYear();
+      const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+      const dd = String(parsed.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    
+    return dateStr;
+  };
+
+  const parseExcelFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // Convert to array of arrays
+        const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        
+        if (rawRows.length === 0) {
+          toast.error("File Excel kosong");
+          return;
+        }
+
+        // Find headers (usually row 0 or look for headers in first few rows)
+        const headerRowIndex = 0; // Assume row 0 is header
+        const headers = rawRows[headerRowIndex].map((h: any) => String(h || "").trim().toUpperCase());
+        
+        // Define indices for columns
+        const getColumnIndex = (synonyms: string[]) => {
+          return headers.findIndex(h => synonyms.includes(h));
+        };
+
+        const idxFullName = getColumnIndex(["NAMA LENGKAP", "NAMA", "FULL NAME", "FULL_NAME"]);
+        const idxNis = getColumnIndex(["NIS", "NOMOR INDUK", "NOMOR INDUK SISWA"]);
+        const idxNisn = getColumnIndex(["NISN", "NOMOR INDUK SISWA NASIONAL"]);
+        const idxPob = getColumnIndex(["TEMPAT LAHIR", "POB", "PLACE OF BIRTH", "TEMPAT_LAHIR"]);
+        const idxDob = getColumnIndex(["TANGGAL LAHIR", "TANGGAL LAHIR (YYYY-MM-DD)", "DOB", "DATE OF BIRTH", "TANGGAL_LAHIR"]);
+        const idxOrigin = getColumnIndex(["ALAMAT", "ASAL", "ORIGIN", "ALAMAT TINGGAL"]);
+        const idxParentName = getColumnIndex(["NAMA ORANG TUA", "NAMA WALI", "ORANG TUA", "PARENT_NAME", "PARENT NAME"]);
+        const idxPhone = getColumnIndex(["NO HP", "NO. HP", "TELEPON", "PHONE", "NO HP ORANG TUA"]);
+        const idxStatus = getColumnIndex(["STATUS", "STATUS KEAKTIFAN", "STATUS (AKTIF/LULUS/PINDAH/KELUAR)"]);
+
+        if (idxFullName === -1) {
+          toast.error("Format Excel tidak sesuai. Kolom 'NAMA LENGKAP' atau 'NAMA' wajib ada.");
+          return;
+        }
+
+        const parsedData: any[] = [];
+        let validCount = 0;
+        let invalidCount = 0;
+
+        // Start from row 1 (after headers)
+        for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
+          const row = rawRows[i];
+          if (!row || row.length === 0) continue;
+
+          // Check if the row is entirely empty
+          const isRowEmpty = row.every(cell => cell === null || cell === undefined || String(cell).trim() === "");
+          if (isRowEmpty) continue;
+
+          const fullName = row[idxFullName] ? String(row[idxFullName]).trim() : "";
+          const nis = idxNis !== -1 && row[idxNis] !== undefined ? String(row[idxNis]).trim() : "";
+          const nisn = idxNisn !== -1 && row[idxNisn] !== undefined ? String(row[idxNisn]).trim() : "";
+          const pob = idxPob !== -1 && row[idxPob] !== undefined ? String(row[idxPob]).trim() : "";
+          const rawDob = idxDob !== -1 && row[idxDob] !== undefined ? row[idxDob] : "";
+          const origin = idxOrigin !== -1 && row[idxOrigin] !== undefined ? String(row[idxOrigin]).trim() : "";
+          const parentName = idxParentName !== -1 && row[idxParentName] !== undefined ? String(row[idxParentName]).trim() : "";
+          const phone = idxPhone !== -1 && row[idxPhone] !== undefined ? String(row[idxPhone]).trim() : "";
+          const rawStatus = idxStatus !== -1 && row[idxStatus] !== undefined ? String(row[idxStatus]).trim() : "";
+
+          const dob = convertExcelDate(rawDob);
+          
+          // Validation
+          const errors: string[] = [];
+          if (!fullName) {
+            errors.push("Nama Lengkap wajib diisi");
+          }
+
+          let status = "Aktif";
+          if (rawStatus) {
+            const normalizedStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+            if (["Aktif", "Lulus", "Pindah", "Keluar"].includes(normalizedStatus)) {
+              status = normalizedStatus;
+            } else {
+              errors.push(`Status '${rawStatus}' tidak valid (Gunakan: Aktif/Lulus/Pindah/Keluar)`);
+            }
+          }
+
+          // Validate DOB format (YYYY-MM-DD)
+          if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+            errors.push(`Format Tanggal Lahir '${rawDob}' tidak valid (Gunakan YYYY-MM-DD)`);
+          }
+
+          const isValid = errors.length === 0;
+          if (isValid) validCount++;
+          else invalidCount++;
+
+          parsedData.push({
+            full_name: fullName,
+            nis,
+            nisn,
+            pob,
+            dob,
+            origin,
+            parent_name: parentName,
+            phone,
+            status,
+            isValid,
+            errors
+          });
+        }
+
+        setImportedData(parsedData);
+        setImportSummary({
+          total: parsedData.length,
+          valid: validCount,
+          invalid: invalidCount
+        });
+
+      } catch (err: any) {
+        toast.error("Gagal memproses file Excel: " + err.message);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const downloadTemplateExcel = () => {
+    try {
+      const headers = [
+        ["NAMA LENGKAP", "NIS", "NISN", "TEMPAT LAHIR", "TANGGAL LAHIR (YYYY-MM-DD)", "ALAMAT", "NAMA ORANG TUA", "NO HP", "STATUS"]
+      ];
+      const sampleData = [
+        ["Daffa Wildan", "10214", "0123456789", "Banyumas", "2015-05-12", "Jl. Raya Dukuhwaluh No.1", "Andhika", "081234567890", "Aktif"],
+        ["Budi Santoso", "10215", "0123456790", "Purwokerto", "2015-08-23", "Jl. Mawar No. 12", "Joko", "089876543210", "Aktif"]
+      ];
+      
+      const ws = XLSX.utils.aoa_to_sheet([...headers, ...sampleData]);
+      
+      // Auto column widths
+      ws['!cols'] = [
+        { wch: 25 }, // NAMA LENGKAP
+        { wch: 10 }, // NIS
+        { wch: 15 }, // NISN
+        { wch: 18 }, // TEMPAT LAHIR
+        { wch: 25 }, // TANGGAL LAHIR
+        { wch: 30 }, // ALAMAT
+        { wch: 20 }, // NAMA ORANG TUA
+        { wch: 15 }, // NO HP
+        { wch: 12 }, // STATUS
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Template Import Murid");
+      XLSX.writeFile(wb, "Template_Import_Murid.xlsx");
+      toast.success("Template Excel berhasil diunduh");
+    } catch (error: any) {
+      toast.error("Gagal mengunduh template: " + error.message);
+    }
+  };
+
+  const handleImportSubmit = async () => {
+    const validRows = importedData.filter(d => d.isValid);
+    if (validRows.length === 0) {
+      toast.error("Tidak ada data valid untuk diimport");
+      return;
+    }
+
+    if (!selectedKelas) return;
+
+    setImportLoading(true);
+    try {
+      const payload = validRows.map(row => ({
+        class_id: selectedKelas.id,
+        full_name: row.full_name,
+        nis: row.nis || null,
+        nisn: row.nisn || null,
+        pob: row.pob || null,
+        dob: row.dob || null,
+        origin: row.origin || null,
+        parent_name: row.parent_name || null,
+        phone: row.phone || null,
+        status: row.status
+      }));
+
+      // Supabase bulk insert
+      const { error } = await supabase
+        .from('students')
+        .insert(payload);
+
+      if (error) throw error;
+
+      await logActivity(
+        "Import Data Siswa", 
+        `Mengimpor ${payload.length} siswa baru ke kelas ${selectedKelas.name} dari file Excel ${importFile?.name || ''}`
+      );
+
+      toast.success(`Berhasil mengimpor ${payload.length} siswa`);
+      setIsImportDialogOpen(false);
+      fetchStudents(selectedKelas.id);
+      fetchClasses(); // Refresh counts
+    } catch (error: any) {
+      toast.error("Gagal mengimpor data: " + error.message);
+    } finally {
+      setImportLoading(false);
     }
   };
 
@@ -1066,27 +1322,40 @@ export default function Kelas({ user: propUser, role: propRole }: PageProps = {}
 
                 <div className="w-[1px] h-6 bg-white/10"></div>
 
-                {(isAdmin || isTeacher || isKepalaSekolah) && (
-                  <Button 
-                    onClick={() => { 
-                      setSelectedStudent(null); 
-                      setStudentFormData({ 
-                        full_name: "", 
-                        nis: "",
-                        nisn: "",
-                        pob: "",
-                        dob: "",
-                        origin: "",
-                        parent_name: "",
-                        phone: "",
-                        status: "Aktif"
-                      }); 
-                      setIsAddStudentOpen(true); 
-                    }} 
-                    className="h-11 px-6 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg shadow-blue-900/20 text-xs uppercase tracking-widest gap-2"
-                  >
-                    <Plus size={16} /> <span>Pendaftaran Murid</span>
-                  </Button>
+                {canManageStudents && (
+                  <>
+                    <Button 
+                      onClick={() => { 
+                        setIsImportDialogOpen(true);
+                        setImportFile(null);
+                        setImportedData([]);
+                        setImportSummary({ total: 0, valid: 0, invalid: 0 });
+                      }} 
+                      className="h-11 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl transition-all shadow-lg shadow-emerald-900/20 text-xs uppercase tracking-widest gap-2"
+                    >
+                      <FileSpreadsheet size={16} /> <span>Import Excel</span>
+                    </Button>
+                    <Button 
+                      onClick={() => { 
+                        setSelectedStudent(null); 
+                        setStudentFormData({ 
+                          full_name: "", 
+                          nis: "",
+                          nisn: "",
+                          pob: "",
+                          dob: "",
+                          origin: "",
+                          parent_name: "",
+                          phone: "",
+                          status: "Aktif"
+                        }); 
+                        setIsAddStudentOpen(true); 
+                      }} 
+                      className="h-11 px-6 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl transition-all shadow-lg shadow-blue-900/20 text-xs uppercase tracking-widest gap-2"
+                    >
+                      <Plus size={16} /> <span>Pendaftaran Murid</span>
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -1124,7 +1393,7 @@ export default function Kelas({ user: propUser, role: propRole }: PageProps = {}
                     <TableHead className="h-14 font-black text-[10px] text-slate-900 uppercase tracking-[0.2em] pl-10 border-r-2 border-slate-900">NISN & Profil</TableHead>
                     <TableHead className="h-14 font-black text-[10px] text-slate-900 uppercase tracking-[0.2em] border-r-2 border-slate-900">Informasi Kelahiran</TableHead>
                     <TableHead className="h-14 font-black text-[10px] text-slate-900 uppercase tracking-[0.2em] border-r-2 border-slate-900">Kontak & Orang Tua</TableHead>
-                    {(isAdmin || isTeacher || isKepalaSekolah) && (
+                    {canManageStudents && (
                       <TableHead className="h-14 text-right font-black text-[10px] text-slate-900 uppercase tracking-[0.2em] pr-10">Kontrol</TableHead>
                     )}
                   </TableRow>
@@ -1184,7 +1453,7 @@ export default function Kelas({ user: propUser, role: propRole }: PageProps = {}
                             </div>
                           </div>
                         </TableCell>
-                        {(isAdmin || isTeacher || isKepalaSekolah) && (
+                        {canManageStudents && (
                           <TableCell className="text-right pr-10">
                             <div className="flex justify-end gap-2">
                               <Button 
@@ -1224,7 +1493,7 @@ export default function Kelas({ user: propUser, role: propRole }: PageProps = {}
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={(isAdmin || isTeacher || isKepalaSekolah) ? 4 : 3} className="text-center py-20 bg-slate-50/50">
+                      <TableCell colSpan={canManageStudents ? 4 : 3} className="text-center py-20 bg-slate-50/50">
                         <div className="flex flex-col items-center justify-center max-w-xs mx-auto">
                           <div className="w-16 h-16 rounded-3xl bg-white flex items-center justify-center text-slate-200 mb-4 border border-slate-100">
                              <Users size={32} />
@@ -1383,6 +1652,158 @@ export default function Kelas({ user: propUser, role: propRole }: PageProps = {}
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Siswa Dialog */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="w-[95vw] sm:max-w-[700px] p-0 border-none shadow-2xl rounded-[32px] overflow-hidden bg-white flex flex-col max-h-[90vh]">
+          <div className="bg-emerald-600 p-6 text-white relative shrink-0">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+            <DialogHeader className="relative z-10">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <FileSpreadsheet size={20} />
+                </div>
+                <div>
+                  <DialogTitle className="text-lg font-black uppercase tracking-tight">
+                    Import Murid dari Excel
+                  </DialogTitle>
+                  <p className="text-emerald-100 text-[9px] font-bold uppercase tracking-widest mt-0.5">
+                    Kelas {selectedKelas?.name}
+                  </p>
+                </div>
+              </div>
+            </DialogHeader>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+            {/* Step 1: Download Template */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">1. Gunakan Template Excel</h4>
+                <p className="text-xs text-slate-500 font-medium">
+                  Unduh template Excel untuk memastikan format kolom dan susunan data Anda sudah benar.
+                </p>
+              </div>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={downloadTemplateExcel}
+                className="h-10 px-5 border-slate-200 hover:border-slate-900 rounded-xl font-bold text-slate-600 transition-all gap-2 text-xs uppercase self-start sm:self-center bg-white shadow-sm"
+              >
+                <Download size={14} />
+                <span>Unduh Template</span>
+              </Button>
+            </div>
+
+            {/* Step 2: Upload Area */}
+            <div className="space-y-2">
+              <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">2. Unggah File Excel</h4>
+              <div className="relative border-2 border-dashed border-slate-200 hover:border-emerald-500 rounded-2xl p-8 transition-colors flex flex-col items-center justify-center text-center bg-slate-50/50 group">
+                <input 
+                  type="file" 
+                  accept=".xlsx, .xls"
+                  onChange={handleImportFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                <div className="w-12 h-12 rounded-xl bg-slate-100 group-hover:bg-emerald-50 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 transition-colors mb-3">
+                  <Upload size={20} />
+                </div>
+                {importFile ? (
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-emerald-600 truncate max-w-[280px]">{importFile.name}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{(importFile.size / 1024).toFixed(1)} KB • Klik atau seret file lain untuk mengganti</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-600">Seret file Excel Anda ke sini, atau klik untuk memilih</p>
+                    <p className="text-[10px] text-slate-400 font-medium">Format yang didukung: .xlsx, .xls</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Step 3: Preview and Stats */}
+            {importedData.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">3. Preview Hasil Parsing</h4>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50 border-none font-bold text-[9px] px-2 py-0.5 rounded uppercase">{importSummary.total} Baris</Badge>
+                    <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-none font-bold text-[9px] px-2 py-0.5 rounded uppercase">{importSummary.valid} Valid</Badge>
+                    {importSummary.invalid > 0 && (
+                      <Badge className="bg-red-50 text-red-700 hover:bg-red-50 border-none font-bold text-[9px] px-2 py-0.5 rounded uppercase">{importSummary.invalid} Error</Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border border-slate-100 rounded-2xl overflow-hidden max-h-[200px] overflow-y-auto bg-white">
+                  <Table className="border-collapse text-xs">
+                    <TableHeader className="bg-slate-50 sticky top-0 z-20">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="h-10 font-bold text-slate-700 uppercase tracking-wider pl-4 w-12 text-center">Status</TableHead>
+                        <TableHead className="h-10 font-bold text-slate-700 uppercase tracking-wider">Nama</TableHead>
+                        <TableHead className="h-10 font-bold text-slate-700 uppercase tracking-wider">NIS/NISN</TableHead>
+                        <TableHead className="h-10 font-bold text-slate-700 uppercase tracking-wider">TTL</TableHead>
+                        <TableHead className="h-10 font-bold text-slate-700 uppercase tracking-wider pr-4">Keterangan / Error</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importedData.map((row, index) => (
+                        <TableRow key={index} className="hover:bg-slate-50">
+                          <TableCell className="pl-4 text-center">
+                            {row.isValid ? (
+                              <CheckCircle2 size={16} className="text-emerald-500 mx-auto" />
+                            ) : (
+                              <XCircle size={16} className="text-red-500 mx-auto" />
+                            )}
+                          </TableCell>
+                          <TableCell className="font-bold text-slate-900 uppercase truncate max-w-[120px]">{row.full_name}</TableCell>
+                          <TableCell className="font-medium text-slate-500">{row.nis || '-'} / {row.nisn || '-'}</TableCell>
+                          <TableCell className="text-slate-500 truncate max-w-[100px]">{row.pob || '-'}{row.dob ? `, ${row.dob}` : ''}</TableCell>
+                          <TableCell className="pr-4 text-[10px]">
+                            {row.isValid ? (
+                              <span className="text-emerald-600 font-bold">Siap diimport</span>
+                            ) : (
+                              <span className="text-red-500 font-bold leading-tight">{row.errors.join(", ")}</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {importSummary.invalid > 0 && (
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-start gap-2.5">
+                    <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-amber-800 font-medium leading-relaxed">
+                      Beberapa baris data memiliki error. Anda tetap dapat melakukan import, namun baris yang memiliki error akan otomatis dilewati.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 gap-2 flex-row sm:justify-end shrink-0">
+            <Button 
+              type="button" 
+              variant="ghost" 
+              onClick={() => setIsImportDialogOpen(false)} 
+              className="h-10 rounded-xl font-bold text-slate-400 text-xs"
+            >
+              Batal
+            </Button>
+            <Button 
+              type="button"
+              onClick={handleImportSubmit}
+              disabled={importLoading || importedData.filter(d => d.isValid).length === 0}
+              className="h-10 px-8 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none text-white font-black rounded-xl shadow-lg flex-1 text-xs uppercase"
+            >
+              {importLoading ? "Mengimpor..." : `Import ${importedData.filter(d => d.isValid).length} Murid`}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

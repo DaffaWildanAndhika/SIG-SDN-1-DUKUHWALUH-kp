@@ -1,8 +1,4 @@
-/**
- * supabase.ts
- * Inisialisasi klien Supabase (Supabase Client) yang mendukung konfigurasi dinamis,
- * failover environment variables, dan proxy instance untuk kueri database.
- */
+
 /// <reference types="vite/client" />
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 

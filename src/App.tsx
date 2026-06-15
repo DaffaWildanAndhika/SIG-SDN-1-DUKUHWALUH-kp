@@ -1,9 +1,4 @@
-/**
- * App.tsx
- * Berkas utama untuk inisialisasi aplikasi React, konfigurasi Router (routing),
- * manajemen state otentikasi global, rendering tata letak (layout) dashboard,
- * menu navigasi sidebar, dan menu ubah kata sandi shortcut untuk seluruh peran pengguna.
- */
+
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from "react-router-dom";
 import { 
@@ -377,7 +372,7 @@ const Layout = ({ user, children }: { user: any, children: React.ReactNode }) =>
                 <SidebarItem 
                   to="/absensi" 
                   icon={ClipboardCheck} 
-                  label="Absensi Siswa" 
+                  label="Daftar Hadir" 
                   active={location.pathname === "/absensi"} 
                   collapsed={!isSidebarOpen && !isMobileMenuOpen} 
                 />

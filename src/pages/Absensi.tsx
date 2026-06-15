@@ -1,9 +1,4 @@
-/**
- * Absensi.tsx
- * Halaman untuk mencatat presensi harian siswa (Hadir, Sakit, Izin, Alpa) dan
- * melakukan rekap presensi per semester dengan saringan rentang tanggal kustom,
- * lengkap dengan grafik ringkasan serta fitur ekspor laporan ke format Excel dan PDF.
- */
+
 import React, { useState, useEffect } from "react";
 import { 
   ClipboardCheck, 

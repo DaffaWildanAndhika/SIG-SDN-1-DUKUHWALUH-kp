@@ -1,3 +1,8 @@
+/**
+ * ResetPassword.tsx
+ * Berkas penanganan rute khusus atau failover ketika ada pengguna yang mengakses tautan pemulihan kata sandi (/reset-password).
+ * Menyediakan struktur navigasi dan otentikasi tambahan.
+ */
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
 import { 

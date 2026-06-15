@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { 
   BookOpen, 
@@ -30,14 +31,14 @@ import { toast } from "sonner";
 import { logActivity } from "@/lib/activityLogger";
 
 const DEFAULT_SUBJECTS = [
-  { id: "1", name: "Pendidikan Pancasila" },
-  { id: "2", name: "Bahasa Indonesia" },
-  { id: "3", name: "Matematika" },
-  { id: "4", name: "IPA" },
-  { id: "5", name: "Seni Budaya" },
-  { id: "6", name: "PJOK" },
-  { id: "7", name: "Bahasa Inggris" },
-  { id: "8", name: "Agama" }
+  { id: "1", name: "Pendidikan Pancasila", kkm: 75 },
+  { id: "2", name: "Bahasa Indonesia", kkm: 75 },
+  { id: "3", name: "Matematika", kkm: 75 },
+  { id: "4", name: "IPA", kkm: 75 },
+  { id: "5", name: "Seni Budaya", kkm: 75 },
+  { id: "6", name: "PJOK", kkm: 75 },
+  { id: "7", name: "Bahasa Inggris", kkm: 75 },
+  { id: "8", name: "Agama", kkm: 75 }
 ];
 
 interface PageProps {
@@ -53,6 +54,7 @@ export default function MataPelajaran({ user: propUser, role: propRole }: PagePr
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<any>(null);
   const [subjectName, setSubjectName] = useState("");
+  const [subjectKkm, setSubjectKkm] = useState<number>(75);
   
   // DB vs Local Fallback Status
   const [dbTableExists, setDbTableExists] = useState<boolean>(true);
@@ -60,9 +62,14 @@ export default function MataPelajaran({ user: propUser, role: propRole }: PagePr
 
   const sqlStatement = `-- Salin perintah SQL berikut ke SQL Editor di Supabase Anda:
 
+-- JALANKAN INI JIKA TABEL SUDAH ADA:
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS kkm INTEGER DEFAULT 75;
+
+-- JALANKAN INI JIKA TABEL BELUM ADA:
 CREATE TABLE IF NOT EXISTS subjects (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
+  kkm INTEGER DEFAULT 75,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -130,17 +137,32 @@ CREATE POLICY "Admins can manage subjects" ON subjects FOR ALL USING (
       return toast.error("Nama mata pelajaran tidak boleh kosong");
     }
     const cleanName = subjectName.trim();
+    const kkmVal = parseInt(String(subjectKkm)) || 75;
     setSaving(true);
     try {
       if (dbTableExists) {
         if (selectedSubject) {
           const { error } = await supabase
             .from('subjects')
-            .update({ name: cleanName })
+            .update({ name: cleanName, kkm: kkmVal })
             .eq('id', selectedSubject.id);
-          if (error) throw error;
-          await logActivity("Mengubah Mata Pelajaran", `Mengubah nama mata pelajaran "${selectedSubject.name}" menjadi "${cleanName}"`);
-          toast.success("Mata pelajaran berhasil diperbarui");
+          
+          if (error) {
+            // Handle if kkm column doesn't exist (e.g. 42703 is undefined column)
+            if (error.message.includes("column \"kkm\" of relation \"subjects\" does not exist") || error.code === "42703") {
+              const { error: fallbackError } = await supabase
+                .from('subjects')
+                .update({ name: cleanName })
+                .eq('id', selectedSubject.id);
+              if (fallbackError) throw fallbackError;
+              toast.warning("Mata pelajaran diperbarui, tetapi KKM gagal disimpan karena kolom 'kkm' belum dibuat di database. Harap jalankan script migrasi SQL.");
+            } else {
+              throw error;
+            }
+          } else {
+            toast.success("Mata pelajaran berhasil diperbarui");
+          }
+          await logActivity("Mengubah Mata Pelajaran", `Mengubah nama mata pelajaran "${selectedSubject.name}" menjadi "${cleanName}" (KKM: ${kkmVal})`);
         } else {
           // Check duplicate
           if (subjects.some(s => s.name.toLowerCase() === cleanName.toLowerCase())) {
@@ -148,26 +170,38 @@ CREATE POLICY "Admins can manage subjects" ON subjects FOR ALL USING (
           }
           const { error } = await supabase
             .from('subjects')
-            .insert([{ name: cleanName }]);
-          if (error) throw error;
-          await logActivity("Menambahkan Mata Pelajaran", `Menambahkan mata pelajaran baru: "${cleanName}"`);
-          toast.success("Mata pelajaran berhasil ditambahkan");
+            .insert([{ name: cleanName, kkm: kkmVal }]);
+          
+          if (error) {
+            if (error.message.includes("column \"kkm\" of relation \"subjects\" does not exist") || error.code === "42703") {
+              const { error: fallbackError } = await supabase
+                .from('subjects')
+                .insert([{ name: cleanName }]);
+              if (fallbackError) throw fallbackError;
+              toast.warning("Mata pelajaran ditambahkan, tetapi KKM gagal disimpan karena kolom 'kkm' belum dibuat di database. Harap jalankan script migrasi SQL.");
+            } else {
+              throw error;
+            }
+          } else {
+            toast.success("Mata pelajaran berhasil ditambahkan");
+          }
+          await logActivity("Menambahkan Mata Pelajaran", `Menambahkan mata pelajaran baru: "${cleanName}" (KKM: ${kkmVal})`);
         }
         fetchSubjects();
       } else {
         // Fallback localStorage
         let updated = [...subjects];
         if (selectedSubject) {
-          updated = updated.map(s => s.id === selectedSubject.id ? { ...s, name: cleanName } : s);
-          await logActivity("Mengubah Mata Pelajaran (Lokal)", `Mengubah nama mata pelajaran lokal "${selectedSubject.name}" menjadi "${cleanName}"`);
+          updated = updated.map(s => s.id === selectedSubject.id ? { ...s, name: cleanName, kkm: kkmVal } : s);
+          await logActivity("Mengubah Mata Pelajaran (Lokal)", `Mengubah nama mata pelajaran lokal "${selectedSubject.name}" menjadi "${cleanName}" (KKM: ${kkmVal})`);
           toast.success("Perubahan mata pelajaran disimpan lokal!");
         } else {
           if (subjects.some(s => s.name.toLowerCase() === cleanName.toLowerCase())) {
             throw new Error("Mata pelajaran sudah terdaftar.");
           }
-          const newSub = { id: Date.now().toString(), name: cleanName };
+          const newSub = { id: Date.now().toString(), name: cleanName, kkm: kkmVal };
           updated.push(newSub);
-          await logActivity("Menambahkan Mata Pelajaran (Lokal)", `Menambahkan mata pelajaran lokal baru: "${cleanName}"`);
+          await logActivity("Menambahkan Mata Pelajaran (Lokal)", `Menambahkan mata pelajaran lokal baru: "${cleanName}" (KKM: ${kkmVal})`);
           toast.success("Mata pelajaran baru disimpan lokal!");
         }
         localStorage.setItem("subjects_list", JSON.stringify(updated));
@@ -175,6 +209,7 @@ CREATE POLICY "Admins can manage subjects" ON subjects FOR ALL USING (
       }
       setIsDialogOpen(false);
       setSubjectName("");
+      setSubjectKkm(75);
       setSelectedSubject(null);
     } catch (err: any) {
       console.error(err);
@@ -240,7 +275,7 @@ CREATE POLICY "Admins can manage subjects" ON subjects FOR ALL USING (
           </div>
           
           <Button 
-            onClick={() => { setSelectedSubject(null); setSubjectName(""); setIsDialogOpen(true); }}
+            onClick={() => { setSelectedSubject(null); setSubjectName(""); setSubjectKkm(75); setIsDialogOpen(true); }}
             className="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wide px-6 flex items-center gap-2 shadow-lg shadow-blue-600/20 shrink-0"
           >
             <PlusCircle size={16} />
@@ -339,6 +374,7 @@ CREATE POLICY "Admins can manage subjects" ON subjects FOR ALL USING (
                 <TableRow className="border-slate-100">
                   <TableHead className="w-[80px] text-center text-[10px] font-black text-slate-400 uppercase tracking-wider">No</TableHead>
                   <TableHead className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nama Mata Pelajaran</TableHead>
+                  <TableHead className="w-[120px] text-center text-[10px] font-black text-slate-400 uppercase tracking-wider">KKM</TableHead>
                   <TableHead className="w-[180px] text-right pr-8 text-[10px] font-black text-slate-400 uppercase tracking-wider">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
@@ -351,6 +387,11 @@ CREATE POLICY "Admins can manage subjects" ON subjects FOR ALL USING (
                     <TableCell className="py-4 font-bold text-slate-800">
                       {sub.name}
                     </TableCell>
+                    <TableCell className="text-center font-bold text-slate-700">
+                      <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-200 border-none font-bold text-xs px-2.5 py-0.5 rounded-md">
+                        {sub.kkm || 75}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right pr-8">
                       <div className="inline-flex gap-2">
                         <Button
@@ -359,6 +400,7 @@ CREATE POLICY "Admins can manage subjects" ON subjects FOR ALL USING (
                           onClick={() => {
                             setSelectedSubject(sub);
                             setSubjectName(sub.name);
+                            setSubjectKkm(sub.kkm || 75);
                             setIsDialogOpen(true);
                           }}
                           className="h-9 w-9 hover:bg-slate-100 text-slate-500 rounded-lg hover:text-blue-600"
@@ -404,6 +446,20 @@ CREATE POLICY "Admins can manage subjects" ON subjects FOR ALL USING (
                   placeholder="Contoh: Matematika"
                   value={subjectName}
                   onChange={(e) => setSubjectName(e.target.value)}
+                  className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-bold text-slate-700 focus-visible:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nilai KKM</Label>
+                <Input 
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="75"
+                  value={subjectKkm}
+                  onChange={(e) => setSubjectKkm(parseInt(e.target.value) || 0)}
                   className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-bold text-slate-700 focus-visible:ring-blue-500"
                   required
                 />
